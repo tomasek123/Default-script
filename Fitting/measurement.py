@@ -3,6 +3,7 @@ from tkinter import filedialog
 from tkinter import *
 import pathlib
 import pandas as pd
+import numpy as np
 
 # Upozorneni !!!
 # Momentalni verze funguje pouze pro pole v x-ovem smeru !!!
@@ -31,18 +32,60 @@ class measurement:
         self.temp = temp
         self.findmin = findmin
 
+    def get_spectra(self):
+        # Pokud se meni uhel, pak nazev sloupcu jsou uhly
+        # Pokud se nehybe polarizatorem, pak nazvy sloupcu jsou RT
+        if self.list[0].angle != 'Not defined':
+            data = self.list[0].spec
+            data = data.rename(columns = {1:self.list[0].angle})
+            for spec in self.list[1:]:
+                data = pd.concat([data,spec.spec.rename(columns = {1:spec.angle})],axis=1, join='inner')
+        else:
+            data = self.list[0].spec
+            data = data.rename(columns = {1:self.list[0].RT})
+            for spec in self.list[1:]:
+                data = pd.concat([data,spec.spec.rename(columns = {1:spec.RT})],axis=1, join='inner')
+        
+        data = data.sort_index()
+        data = data.interpolate(method = 'index')
+        data = data[~data.index.duplicated(keep='first')] # drop duplicate indexes
+        data = data[~data.isin([np.nan]).any(1)] 
+
+        return data
+    
+    def is_fitable(self):
+        is_fit = True
+        for meas in self.list:
+            if meas.angle == 'Not defined':
+                is_fit = False
+        if self.field == 'Not defined':
+            is_fit = False
+        if self.findmin:
+            is_fit = False
+        
+        return is_fit
+    
+    def fit(self): # todo dodelat
+        if self.is_fitable():
+            lel = True
+        else:
+            lel = 'This is not a MOKE measurement!'
+        return lel
+
 def LoadData():
     # Load all txt files in chosen directory
     root = Tk()
     root.withdraw()
     root.call('wm', 'attributes', '.', '-topmost', True)
     initial_dir = os.getcwd()
+    initial_dir = r'C:\Users\tmale\Downloads\Test'  #todo delete
     folder = filedialog.askdirectory(initialdir = initial_dir,title = "Select measurement folders")
     root.destroy()
     Path_folder = pathlib.Path(folder)
     files = list(Path_folder.rglob("*.txt"))
 
     # Initialize a list of all spectra and of all measurement configurations
+    # spectra_list is a 2D list, for each measurement it contains a list of all spectra
     spectra_list = []
     measurements = []
 
@@ -81,14 +124,8 @@ def LoadData():
     return measurements
 
 
-def fit():
-    return 'home'
+result = LoadData()
 
-
-for i in LoadData():
-    for j in i.list:
-        print(j)
-
-# pole = [i.split('T')[0] for i in pole]
-# pole = [float(i[5:]) for i in pole]
+for i in result:
+    print(i.fit())
 
