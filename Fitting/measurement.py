@@ -1,10 +1,12 @@
 import os
 from tkinter import filedialog
 from tkinter import *
+from tkinter.messagebox import *
 import pathlib
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 # Upozorneni !!!
 # Momentalni verze funguje pouze pro pole v x-ovem smeru !!!
@@ -34,11 +36,14 @@ class measurement: #TODO pridej parameter sample name a measurement folder
         self.findmin = findmin
         self.sample = sample
         self.folder = folder_path
-        self.fitted = 'Not defined'
+        self.fitted = 'Not defined'   # dataframe nafitovanych dat
         self.fittable = 'Not defined'
 
     def __str__(self):
-        return '# Vzorek        ' + str(self.sample)+'\n# Repeat       ' + str(self.repeat)+ '\n# Time         ' + str(self.time)+ '\n# Findmin      ' + str(self.findmin)+ '\n# Field        ' + str(self.field) + '\n# Temperature  ' + str(self.temp)+ '\n# Fittable     '+str(self.fittable)+ '\n# Folder path  '+str(self.folder)
+        return '# Vzorek       ' + str(self.sample)+'\n# Repeat       ' + str(self.repeat)+ '\n# Time         ' + str(self.time)+ '\n# Findmin      ' + str(self.findmin)+ '\n# Field        ' + str(self.field) + '\n# Temperature  ' + str(self.temp)+ '\n# Fittable     '+str(self.fittable)+ '\n# Folder path  '+str(self.folder)
+    
+    def standart_moke_str(self):
+        return '# Vzorek       ' + str(self.sample)+'\n# Repeat       ' + str(self.repeat)+ '\n# Time         ' + str(self.time)+ '\n# Field        ' + str(abs(self.field)) + '\n# Temperature  ' + str(self.temp)+ '\n# Folder path  '+str(self.folder)
 
     def get_spectra(self):
         # Pokud se meni uhel, pak nazev sloupcu jsou uhly
@@ -96,13 +101,13 @@ class measurement: #TODO pridej parameter sample name a measurement folder
         return data
 
 
-def LoadData(): # TODO jeste podle pathy slozky budes muset separovat mereni a podle jmena vzorku... good luck
+def LoadData(): 
     # Load all txt files in chosen directory
     root = Tk()
     root.withdraw()
     root.call('wm', 'attributes', '.', '-topmost', True)
     initial_dir = os.getcwd()
-    initial_dir = r'C:\Users\tmale\OneDrive\Documents\Data\LSMO\Francie 2021\MOKE\PLD3970\2023\spectra zrc'  #TODO delete
+    initial_dir = r'C:\Users\tmale\OneDrive\Documents\Data\LSMO\Francie 2021\MOKE\PLD3970\2023'  #TODO delete
     folder = filedialog.askdirectory(initialdir = initial_dir,title = "Select measurement folders")
     root.destroy()
     Path_folder = pathlib.Path(folder)
@@ -158,7 +163,7 @@ def fitni():
         if data[i].fittable and i not in done:
             splacnuto.append([data[i]])
             for j in range(i+1,len(data)):
-                if data[i].repeat == data[j].repeat and data[i].time == data[j].time and data[i].temp == data[j].temp:
+                if data[i].repeat == data[j].repeat and data[i].time == data[j].time and data[i].temp == data[j].temp and data[i].sample == data[j].sample and data[i].folder == data[j].folder:
                     splacnuto[-1].append(data[j])
                     done.append(j)
 
@@ -170,33 +175,117 @@ def fitni():
         else:
             save_smycka(mereni,path)
 
-def save_one_polarity(data,path):  # TODO
+def save_one_polarity(data,path):
+    path = path + '\\' + data[0].sample
     if data[0].temp != 'Not defined':
-        path = path + data[0].temp
+        path = path + '_Temperature_' + str(data[0].temp) + 'K'
     if data[0].repeat != 'Not defined':
-        path = path + data[0].repeat
+        path = path + '_Repeat_' + str(data[0].repeat)
     if data[0].time != 'Not defined':
-        path = path + data[0].time
-    if data[0].list[0].field != 'Not defined':
-        path = path + data[0].time
-    file = open(path + '\\' + data[0].sample + data[0].repeat + data[0].temp + data[0].time +'.dat','a')
-    if data[0].list[0].field != 'Not defined':
-        file.write('# Type of measurement: One polarity of field at '+ data[0].list[0].field + 'T' )
-    else:
-        file.write('# Type of measurement: One polarity of field at ??T')
-    file.write('# Date measured: ' + data[0].list[0].RT[-1:-3] + '.' + data[0].list[0].RT[-3:-5]+'.'+data[0].list[0].RT[:4])
-    file.write(str(data[0]))
+        path = path + '_Time_' + str(data[0].time)
+    if data[0].field != 'Not defined':
+        path = path + '_Field_' + str(data[0].field) + 'T'
+    path = path +'.dat'
 
-def save_kerr(data,path):# TODO
-    print('lol')
+    if os.path.exists(path):
+        if askyesno(title='File exists', message='File already exists. Do you want to overwrite it?\nOne polarity measurement\n'+str(data[0])):
+            os.remove(path)
+        else:
+            return
+    file = open(path,'a')
+    if data[0].list[0].field != 'Not defined':
+        file.write('# Type of measurement: One polarity of field at '+ str(data[0].field) + 'T\n' )
+    else:
+        file.write('# Type of measurement: One polarity of field at ??T\n')
+    file.write('# Date measured:       ' + data[0].list[0].RT[6:8] + '.' + data[0].list[0].RT[4:6]+'.'+data[0].list[0].RT[:4]+'\n')
+    file.write(str(data[0]))
+    file.write('\n')
+    data[0].fitted.rename(columns = {'Fit':'MOKE'})
+    data[0].fitted.to_csv(file)
+    file.close()
+
+def save_kerr(data,path):
+    path = path + '\\' + data[0].sample
+    if data[0].temp != 'Not defined':
+        path = path + '_Temperature_' + str(data[0].temp) + 'K'
+    if data[0].repeat != 'Not defined':
+        path = path + '_Repeat_' + str(data[0].repeat)
+    if data[0].time != 'Not defined':
+        path = path + '_Time_' + str(data[0].time)
+    path = path +'.dat'
+
+    if os.path.exists(path):
+        if askyesno(title='File exists', message='File already exists. Do you want to overwrite it?\nStandart MOKE measurement\n'+data[0].standart_moke_str()):
+            os.remove(path)
+        else:
+            return
+    file = open(path,'a')
+    file.write('# Type of measurement: Standart MOKE measurement at '+ u"\u00B1" + ' ' + str(abs(data[0].field)) + 'T\n' )
+    file.write('# Date measured:       ' + data[0].list[0].RT[6:8] + '.' + data[0].list[0].RT[4:6]+'.'+data[0].list[0].RT[:4]+'\n')
+    file.write(data[0].standart_moke_str())
+    file.write('\n')
+    file.close()
+    data[0].fitted = data[0].fitted.rename(columns = {'Fit':'MOKE '+str(data[0].field)+'T'})
+    data[1].fitted = data[1].fitted.rename(columns = {'Fit':'MOKE '+str(data[1].field)+'T'})
+    data_save = pd.concat([data[0].fitted[['MOKE '+str(data[0].field)+'T']],data[1].fitted[['MOKE '+str(data[1].field)+'T']]],axis=1, join='inner')
+    data_save = data_save.sort_index()
+    data_save = data_save.interpolate(method = 'index')
+    data_save = data_save[~data_save.index.duplicated(keep='first')] # drop duplicate indexes
+    data_save = data_save[~data_save.isin([np.nan]).any(axis=1)] 
+    data_save['MOKE'] = (data[0].fitted['MOKE '+str(data[0].field)+'T'] - data[1].fitted['MOKE '+str(data[1].field)+'T'])/2
+    data_save.to_csv(path,mode='a')
 
 def save_smycka(data,path):# TODO
-    print('lol')
+    # path = path + '\\' + data[0].sample + '_smycka_'
+    # if data[0].temp != 'Not defined':
+    #     path = path + '_Temperature_' + str(data[0].temp) + 'K'
+    # if data[0].repeat != 'Not defined':
+    #     path = path + '_Repeat_' + str(data[0].repeat)
+    # if data[0].time != 'Not defined':
+    #     path = path + '_Time_' + str(data[0].time)
+    # path = path +'.dat'
+
+    # if os.path.exists(path):
+    #     if askyesno(title='File exists', message='File already exists. Do you want to overwrite it?\Loop MOKE measurement\n'+data[0].standart_moke_str()):
+    #         os.remove(path)
+    #     else:
+    #         return
+    # file = open(path,'a')
+    # file.write('# Type of measurement: Loop MOKE measurement\n' )
+    # file.write('# Date measured:       ' + data[0].list[0].RT[6:8] + '.' + data[0].list[0].RT[4:6]+'.'+data[0].list[0].RT[:4]+'\n')
+    # file.write(data[0].standart_moke_str())
+    # file.write('\n')
+    # file.close()
+
+    # # Jmena sloupcu muzou byt stejna ci ne?? TODO
+    # data.sort(key = lambda x: int(x.list[0].RT.replace('_','')))
+    # data_save = data[0].fitted[['Fit']]
+    # data_save = data_save.rename(columns = {'Fit': str(data[0].field) + 'T'})
+    # for i in range(1,len(data)):
+    #     data[i].fitted = data[i].rename(columns = {'Fit': str(data[i].field) + 'T'})
+    #     data_save = pd.concat([data_save,data[i].fitted[[str(data[i].field)+'T']]],axis=1, join='inner')
+    # data_save = data_save.sort_index()
+    # data_save = data_save.interpolate(method = 'index')
+    # data_save = data_save[~data_save.index.duplicated(keep='first')] # drop duplicate indexes
+    # data_save = data_save[~data_save.isin([np.nan]).any(axis=1)] 
+    # data_save.to_csv(path,mode='a')
+    pass
+    
+
+start = time.time()
+
+fitni()
+
+end = time.time()
+
+print('Execution time: ',end-start,' seconds')
 
 
+# Funkce fitni
+#               - nasledne ukaz : false
+#               - nasledne prumeruj : false     
 
-
-# Funkce fitni (ukladej i plus/minus pole fity,sample name,jestli smycka nebo kerr, date, RT, repeat, temperature, time,folder)
+# Funkce prumeruj
 
 # Funkce ukaz: - pm: default false
 #              - energie konkretni na smycku : default None
@@ -212,3 +301,5 @@ def save_smycka(data,path):# TODO
 #
 # Funkce savitzky: proste filtr
 #                 - parameter save : default no
+#
+# Funkce odecti BG smycka
