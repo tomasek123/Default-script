@@ -236,39 +236,39 @@ def save_kerr(data,path):
     data_save.to_csv(path,mode='a')
 
 def save_smycka(data,path):# TODO
-    # path = path + '\\' + data[0].sample + '_smycka_'
-    # if data[0].temp != 'Not defined':
-    #     path = path + '_Temperature_' + str(data[0].temp) + 'K'
-    # if data[0].repeat != 'Not defined':
-    #     path = path + '_Repeat_' + str(data[0].repeat)
-    # if data[0].time != 'Not defined':
-    #     path = path + '_Time_' + str(data[0].time)
-    # path = path +'.dat'
+    path = path + '\\' + data[0].sample + '_smycka_'
+    if data[0].temp != 'Not defined':
+        path = path + '_Temperature_' + str(data[0].temp) + 'K'
+    if data[0].repeat != 'Not defined':
+        path = path + '_Repeat_' + str(data[0].repeat)
+    if data[0].time != 'Not defined':
+        path = path + '_Time_' + str(data[0].time)
+    path = path +'.dat'
 
-    # if os.path.exists(path):
-    #     if askyesno(title='File exists', message='File already exists. Do you want to overwrite it?\Loop MOKE measurement\n'+data[0].standart_moke_str()):
-    #         os.remove(path)
-    #     else:
-    #         return
-    # file = open(path,'a')
-    # file.write('# Type of measurement: Loop MOKE measurement\n' )
-    # file.write('# Date measured:       ' + data[0].list[0].RT[6:8] + '.' + data[0].list[0].RT[4:6]+'.'+data[0].list[0].RT[:4]+'\n')
-    # file.write(data[0].standart_moke_str())
-    # file.write('\n')
-    # file.close()
+    if os.path.exists(path):
+        if askyesno(title='File exists', message='File already exists. Do you want to overwrite it?\Loop MOKE measurement\n'+data[0].standart_moke_str()):
+            os.remove(path)
+        else:
+            return
+    file = open(path,'a')
+    file.write('# Type of measurement: Loop MOKE measurement\n' )
+    file.write('# Date measured:       ' + data[0].list[0].RT[6:8] + '.' + data[0].list[0].RT[4:6]+'.'+data[0].list[0].RT[:4]+'\n')
+    file.write(data[0].standart_moke_str())
+    file.write('\n')
+    file.close()
 
-    # # Jmena sloupcu muzou byt stejna ci ne?? TODO
-    # data.sort(key = lambda x: int(x.list[0].RT.replace('_','')))
-    # data_save = data[0].fitted[['Fit']]
-    # data_save = data_save.rename(columns = {'Fit': str(data[0].field) + 'T'})
-    # for i in range(1,len(data)):
-    #     data[i].fitted = data[i].rename(columns = {'Fit': str(data[i].field) + 'T'})
-    #     data_save = pd.concat([data_save,data[i].fitted[[str(data[i].field)+'T']]],axis=1, join='inner')
-    # data_save = data_save.sort_index()
-    # data_save = data_save.interpolate(method = 'index')
-    # data_save = data_save[~data_save.index.duplicated(keep='first')] # drop duplicate indexes
-    # data_save = data_save[~data_save.isin([np.nan]).any(axis=1)] 
-    # data_save.to_csv(path,mode='a')
+    # Jmena sloupcu muzou byt stejna ci ne?? TODO
+    data.sort(key = lambda x: int(x.list[0].RT.replace('_','')))
+    data_save = data[0].fitted[['Fit']]
+    data_save = data_save.rename(columns = {'Fit': str(data[0].field) + 'T'})
+    for i in range(1,len(data)):
+        data[i].fitted = data[i].rename(columns = {'Fit': str(data[i].field) + 'T'})
+        data_save = pd.concat([data_save,data[i].fitted[[str(data[i].field)+'T']]],axis=1, join='inner')
+    data_save = data_save.sort_index()
+    data_save = data_save.interpolate(method = 'index')
+    data_save = data_save[~data_save.index.duplicated(keep='first')] # drop duplicate indexes
+    data_save = data_save[~data_save.isin([np.nan]).any(axis=1)] 
+    data_save.to_csv(path,mode='a')
     pass
     
 
