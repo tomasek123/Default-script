@@ -29,15 +29,15 @@ class spectra:
 class measurement: #TODO pridej parameter sample name a measurement folder
     def __init__(self,spec,repeat,time,field,temp,findmin,sample,folder_path):
         self.list = spec      # List spekter v tomto mereni
-        self.repeat = repeat
-        self.time = time
-        self.field = field
-        self.temp = temp
-        self.findmin = findmin
-        self.sample = sample
-        self.folder = folder_path
+        self.repeat = repeat          # Repeat
+        self.time = time              # Time (repetice ne real time)
+        self.field = field            # Pole
+        self.temp = temp              # Teplota
+        self.findmin = findmin        # jsou to findmin spektra?
+        self.sample = sample          # sample name
+        self.folder = folder_path     # path do slozky s merenimi
         self.fitted = 'Not defined'   # dataframe nafitovanych dat
-        self.fittable = 'Not defined'
+        self.fittable = 'Not defined' # bulik jestli jsou to RPE spektra
 
     def __str__(self):
         return '# Vzorek       ' + str(self.sample)+'\n# Repeat       ' + str(self.repeat)+ '\n# Time         ' + str(self.time)+ '\n# Findmin      ' + str(self.findmin)+ '\n# Field        ' + str(self.field) + '\n# Temperature  ' + str(self.temp)+ '\n# Fittable     '+str(self.fittable)+ '\n# Folder path  '+str(self.folder)
@@ -101,7 +101,10 @@ class measurement: #TODO pridej parameter sample name a measurement folder
         return data
 
 
-def LoadData(): 
+def LoadData(): # TODO co kdyz soubor prazdny? Oprav. 
+    # TODO Fundamentalni problem... Smycky se loaduji k sobe. Je potreba vsechny soubory seradit podle RT
+    #                               a nasledne je davat k merenim. Jakmile se mereni zmeni jiz se nikdy do nej
+    #                               nevracet. Misto toho zavest nove mereni se stejnymi parametry.
     # Load all txt files in chosen directory
     root = Tk()
     root.withdraw()
@@ -236,7 +239,7 @@ def save_kerr(data,path):
     data_save.to_csv(path,mode='a')
 
 def save_smycka(data,path):# TODO
-    path = path + '\\' + data[0].sample + '_smycka_'
+    path = path + '\\' + data[0].sample + '_smycka'
     if data[0].temp != 'Not defined':
         path = path + '_Temperature_' + str(data[0].temp) + 'K'
     if data[0].repeat != 'Not defined':
@@ -257,19 +260,26 @@ def save_smycka(data,path):# TODO
     file.write('\n')
     file.close()
 
-    # Jmena sloupcu muzou byt stejna ci ne?? TODO
+    # Jmena sloupcu, musi byt jina?? Vyzkousej...
     data.sort(key = lambda x: int(x.list[0].RT.replace('_','')))
     data_save = data[0].fitted[['Fit']]
     data_save = data_save.rename(columns = {'Fit': str(data[0].field) + 'T'})
+    name_colum = [str(data[0].field) + 'T']
     for i in range(1,len(data)):
-        data[i].fitted = data[i].rename(columns = {'Fit': str(data[i].field) + 'T'})
-        data_save = pd.concat([data_save,data[i].fitted[[str(data[i].field)+'T']]],axis=1, join='inner')
+        name_col_single = str(data[i].field) + 'T'
+        j = 2
+        while name_col_single in name_colum:
+            name_col_single = str(data[i].field) + 'T ' + str(j)
+            j = j + 1
+        name_colum.append(name_col_single)
+        data[i].fitted = data[i].fitted.rename(columns = {'Fit': name_col_single})
+        data_save = pd.concat([data_save,data[i].fitted[[name_col_single]]],axis=1, join='inner')
+
     data_save = data_save.sort_index()
     data_save = data_save.interpolate(method = 'index')
     data_save = data_save[~data_save.index.duplicated(keep='first')] # drop duplicate indexes
     data_save = data_save[~data_save.isin([np.nan]).any(axis=1)] 
     data_save.to_csv(path,mode='a')
-    pass
     
 
 start = time.time()
@@ -303,3 +313,5 @@ print('Execution time: ',end-start,' seconds')
 #                 - parameter save : default no
 #
 # Funkce odecti BG smycka
+#
+# Funkce vyplot findmin
