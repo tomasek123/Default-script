@@ -28,7 +28,7 @@ class spectra:
 
 class measurement: #TODO pridej parameter sample name a measurement folder
     def __init__(self,spec,repeat,time,field,temp,findmin,sample,folder_path):
-        self.list = spec      # List spekter v tomto mereni
+        self.list = spec              # List spekter v tomto mereni
         self.repeat = repeat          # Repeat
         self.time = time              # Time (repetice ne real time)
         self.field = field            # Pole
@@ -44,6 +44,27 @@ class measurement: #TODO pridej parameter sample name a measurement folder
     
     def standart_moke_str(self):
         return '# Vzorek       ' + str(self.sample)+'\n# Repeat       ' + str(self.repeat)+ '\n# Time         ' + str(self.time)+ '\n# Field        ' + str(abs(self.field)) + '\n# Temperature  ' + str(self.temp)+ '\n# Folder path  '+str(self.folder)
+
+    def check_duplicates(self):
+        angles = []
+        for i in range(0,len(self.list)):
+            if self.list[i].angle in angles:
+                return True
+            else:
+                angles.append(self.list[i].angle)
+        return False
+
+    def deduplicate(self):
+        angles = []
+        measurements = []
+        for i in range(0,len(self.list)):
+            if self.list[i].angle in angles:
+                measurements.append(self.list[0:i])
+                angles = [self.list[i].angle]
+            else:
+                angles.append(self.list[i].angle)
+        measurements.append(self.list[-len(angles):])
+        return measurements
 
     def get_spectra(self):
         # Pokud se meni uhel, pak nazev sloupcu jsou uhly
@@ -91,7 +112,7 @@ class measurement: #TODO pridej parameter sample name a measurement folder
                 A.append([np.power(np.sin(angle),2),np.sin(2*angle),1])
             A = np.linalg.pinv(A)
             for ind,row in data.iterrows():
-                data.loc[ind,'Fit'] = A.dot(row.values)[1]/A.dot(row.values)[0]
+                data.loc[ind,'Fit'] = np.rad2deg(A.dot(row.values)[1]/A.dot(row.values)[0])
             data['eV'] = 1239.8/data.index.to_series()
             data = data.set_index('eV')
         else:
@@ -102,15 +123,12 @@ class measurement: #TODO pridej parameter sample name a measurement folder
 
 
 def LoadData(): # TODO co kdyz soubor prazdny? Oprav. 
-    # TODO Fundamentalni problem... Smycky se loaduji k sobe. Je potreba vsechny soubory seradit podle RT
-    #                               a nasledne je davat k merenim. Jakmile se mereni zmeni jiz se nikdy do nej
-    #                               nevracet. Misto toho zavest nove mereni se stejnymi parametry.
     # Load all txt files in chosen directory
     root = Tk()
     root.withdraw()
     root.call('wm', 'attributes', '.', '-topmost', True)
     initial_dir = os.getcwd()
-    initial_dir = r'C:\Users\tmale\OneDrive\Documents\Data\LSMO\Francie 2021\MOKE\PLD3970\2023'  #TODO delete
+    initial_dir = r'C:\Users\tmale\OneDrive\Documents\Data\LSMO\Francie 2022\MOKE\PLD4150\loop\raw_data'  #TODO delete
     folder = filedialog.askdirectory(initialdir = initial_dir,title = "Select measurement folders")
     root.destroy()
     Path_folder = pathlib.Path(folder)
@@ -120,13 +138,17 @@ def LoadData(): # TODO co kdyz soubor prazdny? Oprav.
     # spectra_list is a 2D list, for each measurement it contains a list of all spectra
     spectra_list = []
     measurements = []
+    last_meas = []
 
     # for each path to a txt measurement file disect its name into components
     # and load it into the spectra class
     for file in files:
         name = str(file).rsplit('\\',1)[1]
         path = str(file).rsplit('\\',1)[0]
-        data = pd.read_csv(file, comment='#', index_col=0, sep='\t', header=None)
+        try:
+            data = pd.read_csv(file, comment='#', index_col=0, sep='\t', header=None)
+        except:
+            data = 'Not defined'
         RT = name[0:18]
         name = name.split('_')
         name[-1] = name[-1].split('.txt')[0]
@@ -143,18 +165,27 @@ def LoadData(): # TODO co kdyz soubor prazdny? Oprav.
         else:
             findmin = False
         meas = [properties[0],properties[1],properties[3],properties[4],findmin,name[2],path]
-        if meas in measurements:
-            indexx = measurements.index(meas)
-            spectra_list[indexx].append(spectra(data,file,RT,properties[0],properties[1],properties[2],properties[3],properties[4],properties[5]))
+        if meas == last_meas:
+            spectra_list[-1].append(spectra(data,file,RT,properties[0],properties[1],properties[2],properties[3],properties[4],properties[5]))
         else:
             measurements.append(meas)
+            last_meas = meas
             spectra_list.append([spectra(data,file,RT,properties[0],properties[1],properties[2],properties[3],properties[4],properties[5])])
 
+    # Check if there are duplicate measurements in one element (e.g. -1 T during loop measurement)
+    measurement_list = []
     for i in range(0,len(measurements)):
-        measurements[i] = measurement(spectra_list[i],measurements[i][0],measurements[i][1],measurements[i][2],measurements[i][3],measurements[i][4],measurements[i][5],measurements[i][6])
- 
+        current = measurement(spectra_list[i],measurements[i][0],measurements[i][1],measurements[i][2],measurements[i][3],measurements[i][4],measurements[i][5],measurements[i][6])
+        if current.check_duplicates():
+            duplicates = current.deduplicate()
+            for j in duplicates:
+                deduplicate = measurement(j,measurements[i][0],measurements[i][1],measurements[i][2],measurements[i][3],measurements[i][4],measurements[i][5],measurements[i][6])
+                measurement_list.append(deduplicate)
+        else:
+            measurement_list.append(current)
+            
     # Return a list of measurement class objects and opened folder path
-    return measurements, folder
+    return measurement_list, folder
 
 def fitni():
     data,path = LoadData()
@@ -223,7 +254,7 @@ def save_kerr(data,path):
         else:
             return
     file = open(path,'a')
-    file.write('# Type of measurement: Standart MOKE measurement at '+ u"\u00B1" + ' ' + str(abs(data[0].field)) + 'T\n' )
+    file.write('# Type of measurement: Standart MOKE measurement at +- ' + str(abs(data[0].field)) + 'T\n' )
     file.write('# Date measured:       ' + data[0].list[0].RT[6:8] + '.' + data[0].list[0].RT[4:6]+'.'+data[0].list[0].RT[:4]+'\n')
     file.write(data[0].standart_moke_str())
     file.write('\n')
@@ -260,7 +291,7 @@ def save_smycka(data,path):# TODO
     file.write('\n')
     file.close()
 
-    # Jmena sloupcu, musi byt jina?? Vyzkousej...
+    # Jmena sloupcu, musi byt jina?? Vyzkousej... TODO
     data.sort(key = lambda x: int(x.list[0].RT.replace('_','')))
     data_save = data[0].fitted[['Fit']]
     data_save = data_save.rename(columns = {'Fit': str(data[0].field) + 'T'})
