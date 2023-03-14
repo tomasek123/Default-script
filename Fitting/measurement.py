@@ -122,7 +122,7 @@ class measurement: #TODO pridej parameter sample name a measurement folder
         return data
 
 
-def LoadData(): # TODO co kdyz soubor prazdny? Oprav. 
+def LoadData(): 
     # Load all txt files in chosen directory
     root = Tk()
     root.withdraw()
