@@ -26,7 +26,7 @@ class spectra:
     def __str__(self):
         return 'Real time      '+ str(self.RT) + '\n Repeat        ' + str(self.repeat)+ '\n Time          ' + str(self.time)+ '\n Angle         ' + str(self.angle)+ '\n Field         ' + str(self.field) + '\n Temperature   ' + str(self.temp)+ '\n Field current '+str(self.fc)
 
-class measurement: #TODO pridej parameter sample name a measurement folder
+class measurement:
     def __init__(self,spec,repeat,time,field,temp,findmin,sample,folder_path):
         self.list = spec              # List spekter v tomto mereni
         self.repeat = repeat          # Repeat
@@ -121,6 +121,21 @@ class measurement: #TODO pridej parameter sample name a measurement folder
         self.fitted = data
         return data
 
+class measurement_result:
+    def __init__(self,data,repeat,time,field,temp,sample,folder_path,date,type_meas):
+        self.repeat = repeat          # Repeat
+        self.time = time              # Time (repetice ne real time)
+        self.field = field            # Pole
+        self.temp = temp              # Teplota
+        self.sample = sample          # sample name
+        self.folder = folder_path     # path do slozky s merenimi
+        self.data = data              # dataframe dat
+        self.date = date              # Date measured
+        self.type = type_meas
+
+    def __str__(self):
+        return '# Vzorek       ' + str(self.sample)+'\n# Repeat       ' + str(self.repeat)+ '\n# Time         ' + str(self.time)+ '\n# Field        ' + str(self.field) + '\n# Temperature  ' + str(self.temp)+  '\n# Folder path  '+str(self.folder)
+    
 
 def LoadData(): 
     # Load all txt files in chosen directory
@@ -128,7 +143,6 @@ def LoadData():
     root.withdraw()
     root.call('wm', 'attributes', '.', '-topmost', True)
     initial_dir = os.getcwd()
-    initial_dir = r'C:\Users\tmale\OneDrive\Documents\Data\LSMO\Francie 2022\MOKE\PLD4150\loop\raw_data'  #TODO delete
     folder = filedialog.askdirectory(initialdir = initial_dir,title = "Select measurement folders")
     root.destroy()
     Path_folder = pathlib.Path(folder)
@@ -187,7 +201,7 @@ def LoadData():
     # Return a list of measurement class objects and opened folder path
     return measurement_list, folder
 
-def fitni(show = False):
+def fitni(show = False): # TODO show, average
     data,path = LoadData()
     for i in range(0,len(data)):
         data[i].fit()
@@ -210,24 +224,19 @@ def fitni(show = False):
             save_smycka(mereni,path)
 
     if show:  # TODO
-        # ukaz(path)
+        # uka_vse(path)
         pass
 
 def save_one_polarity(data,path):
     path = path + '\\' + data[0].sample
-    legenda = data[0].sample
     if data[0].temp != 'Not defined':
         path = path + '_Temperature_' + str(data[0].temp) + 'K'
-        legenda = legenda + ' Temperature ' + str(data[0].temp) + 'K'
     if data[0].repeat != 'Not defined':
         path = path + '_Repeat_' + str(data[0].repeat)
-        legenda = legenda + ' Repeat ' + str(data[0].repeat)
     if data[0].time != 'Not defined':
         path = path + '_Time_' + str(data[0].time)
-        legenda = legenda + ' Time ' + str(data[0].time)
     if data[0].field != 'Not defined':
         path = path + '_Field_' + str(data[0].field) + 'T'
-        legenda = legenda + ' Field ' + str(data[0].field)
     path = path +'.dat'
 
     if os.path.exists(path):
@@ -241,24 +250,20 @@ def save_one_polarity(data,path):
     else:
         file.write('# Type of measurement: One polarity of field at ??T\n')
     file.write('# Date measured:       ' + data[0].list[0].RT[6:8] + '.' + data[0].list[0].RT[4:6]+'.'+data[0].list[0].RT[:4]+'\n')
-    file.write(str(data[0]))
+    file.write(str(data[0].standart_moke_str()))
     file.write('\n')
     data[0].fitted.rename(columns = {'Fit':'MOKE'})
     data[0].fitted.to_csv(file)
     file.close()
 
 def save_kerr(data,path):
-    legenda = data[0].sample
     path = path + '\\' + data[0].sample
     if data[0].temp != 'Not defined':
         path = path + '_Temperature_' + str(data[0].temp) + 'K'
-        legenda = legenda + ' Temperature ' + str(data[0].temp) + 'K'
     if data[0].repeat != 'Not defined':
         path = path + '_Repeat_' + str(data[0].repeat)
-        legenda = legenda + ' Repeat ' + str(data[0].repeat)
     if data[0].time != 'Not defined':
         path = path + '_Time_' + str(data[0].time)
-        legenda = legenda + ' Time ' + str(data[0].time)
     path = path +'.dat'
 
     if os.path.exists(path):
@@ -329,6 +334,88 @@ def save_smycka(data,path):
     data_save.to_csv(path,mode='a')
     
 
+def ukaz_LoadData(filenames):
+    # Nacte soubory jiz vyfitovanych dat
+    one_pol = []
+    moke = []
+    loop = []
+    for file in filenames:
+        try:
+            data = pd.read_csv(file, comment='#', index_col=0)
+            f = open(file,'r')
+            type_meas = f.readline().rsplit(' ')[1]
+            date = f.readline().rsplit(' ')[1]
+            vzorek = f.readline().rsplit(' ')[1]
+            repeat = f.readline().rsplit(' ')[1]
+            time = f.readline().rsplit(' ')[1]
+            field = f.readline().rsplit(' ')[1]
+            temp = f.readline().rsplit(' ')[1]
+            folder = f.readline().split(' path  ')[1]
+            f.close()
+        except:
+            pass
+        if 'One polarity' in type_meas:
+            one_pol.append(measurement_result(data,repeat,time,field,temp,vzorek,folder,date,type_meas))
+        elif 'Standart MOKE' in type_meas:
+            moke.append(measurement_result(data,repeat,time,field,temp,vzorek,folder,date,type_meas))
+        elif 'Loop MOKE' in type_meas:
+            loop.append(measurement_result(data,repeat,time,field,temp,vzorek,folder,date,type_meas))
+    return one_pol, moke, loop
+
+def uka(path = 'Not defined',sep = 1,pm = False, loop_energy = 'Not defined'): # TODO
+    # Tato funkce ukaze konkretni mereni v adresari, ktere uzivatel vybere
+    if path == 'Not defined':
+        initial_dir = os.getcwd()
+    else:
+        initial_dir = path
+    root = Tk()
+    root.withdraw()
+    root.call('wm', 'attributes', '.', '-topmost', True)
+    filenames = filedialog.askopenfilename(initial_dir,title = "Select files",filetypes = (("txt files","*.dat .txt .KNT"),("all files","*.*")),multiple=True)
+    root.destroy()
+    onepol,moke,loop = ukaz_LoadData(filenames)
+    if sep == 0:
+        onepol + moke + loop
+        for meas in onepol:
+            legenda = meas.sample
+            if meas.temp != 'Not defined':
+                legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+            if meas.repeat != 'Not defined':
+                legenda = legenda + ' Repeat ' + str(meas.repeat)
+            if meas.time != 'Not defined':
+                legenda = legenda + ' Time ' + str(meas.time)
+            if meas.field != 'Not defined':
+                legenda = legenda + ' Field ' + str(meas.field)
+            plt.plot(meas.data['MOKE'], label = legenda)
+        for meas in moke:
+            legenda = meas.sample
+            if meas.temp != 'Not defined':
+                legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+            if meas.repeat != 'Not defined':
+                legenda = legenda + ' Repeat ' + str(meas.repeat)
+            if meas.time != 'Not defined':
+                legenda = legenda + ' Time ' + str(meas.time)
+            if pm:
+                names = meas.data.columns()
+                for name in names:
+                    plt.plot(meas.data[name], label = legenda+' '+str(name))
+            else:
+                plt.plot(meas.data['MOKE'], label = legenda)
+
+def uka_vse(path = 'Not defined',pm = False, loop_energy = 'Not defined'): # TODO
+    # Tato funkce ukaze vsechny mereni v adresari
+    if path == 'Not defined':
+        root = Tk()
+        root.withdraw()
+        root.call('wm', 'attributes', '.', '-topmost', True)
+        initial_dir = os.getcwd()
+        path = filedialog.askdirectory(initialdir = initial_dir,title = "Select measurement folders")
+        root.destroy()
+    Path_folder = pathlib.Path(path)
+    filenames = list(Path_folder.rglob("*.dat")) 
+    onepol,moke,loop = ukaz_LoadData(filenames)
+
+
 start = time.time()
 
 fitni()
@@ -345,8 +432,15 @@ print('Execution time: ',end-start,' seconds')
 # Funkce prumeruj - zprumeruje vybrana mereni
 #                  - ukaz : default false 
 
-# Funkce ukaz:  - path : nafituje to vsechny data sobory ve slozce
+# Funkce uka:    vyber si konkretni datasoubory
+#               - sep : 0,1,2   - jestli chces separovat grafy nebo ne: 0 ne, 1 podle typu, 2 podle jmena a typu
+#               - path : default none
 #               - pm: default false
+#               - energie konkretni na smycku : default None
+
+# Funkce uka_vse:  ukaze to vsechny data sobory ve slozce
+#               - pm: default false
+#               - path : default none
 #               - energie konkretni na smycku : default None
 
 # Funkce ukafit: ukaze fit na jedne energii 
