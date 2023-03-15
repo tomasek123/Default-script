@@ -43,7 +43,7 @@ class measurement:
         return '# Vzorek       ' + str(self.sample)+'\n# Repeat       ' + str(self.repeat)+ '\n# Time         ' + str(self.time)+ '\n# Findmin      ' + str(self.findmin)+ '\n# Field        ' + str(self.field) + '\n# Temperature  ' + str(self.temp)+ '\n# Fittable     '+str(self.fittable)+ '\n# Folder path  '+str(self.folder)
     
     def standart_moke_str(self):
-        return '# Vzorek       ' + str(self.sample)+'\n# Repeat       ' + str(self.repeat)+ '\n# Time         ' + str(self.time)+ '\n# Field        ' + str(abs(self.field)) + '\n# Temperature  ' + str(self.temp)+ '\n# Folder path  '+str(self.folder)
+        return '# Vzorek:       ' + str(self.sample)+'\n# Repeat:       ' + str(self.repeat)+ '\n# Time:         ' + str(self.time)+ '\n# Field:        ' + str(abs(self.field)) + '\n# Temperature:  ' + str(self.temp)+ '\n# Folder path:  '+str(self.folder)
 
     def check_duplicates(self):
         angles = []
@@ -131,7 +131,7 @@ class measurement_result:
         self.folder = folder_path     # path do slozky s merenimi
         self.data = data              # dataframe dat
         self.date = date              # Date measured
-        self.type = type_meas
+        self.type = type_meas         # Measurement type eg loop, moke,one polarity of field
 
     def __str__(self):
         return '# Vzorek       ' + str(self.sample)+'\n# Repeat       ' + str(self.repeat)+ '\n# Time         ' + str(self.time)+ '\n# Field        ' + str(self.field) + '\n# Temperature  ' + str(self.temp)+  '\n# Folder path  '+str(self.folder)
@@ -343,17 +343,26 @@ def ukaz_LoadData(filenames):
         try:
             data = pd.read_csv(file, comment='#', index_col=0)
             f = open(file,'r')
-            type_meas = f.readline().rsplit(' ')[1]
-            date = f.readline().rsplit(' ')[1]
-            vzorek = f.readline().rsplit(' ')[1]
-            repeat = f.readline().rsplit(' ')[1]
-            time = f.readline().rsplit(' ')[1]
-            field = f.readline().rsplit(' ')[1]
-            temp = f.readline().rsplit(' ')[1]
-            folder = f.readline().split(' path  ')[1]
+            type_meas = f.readline().rsplit(': ')[1].strip()
+            date = f.readline().rsplit(': ')[1].strip()
+            vzorek = f.readline().rsplit(': ')[1].strip()
+            repeat = f.readline().rsplit(': ')[1].strip()
+            time = f.readline().rsplit(': ')[1].strip()
+            field = f.readline().rsplit(': ')[1].strip()
+            temp = f.readline().rsplit(': ')[1].strip()
+            folder = f.readline().rsplit(':  ')[1].strip()
             f.close()
         except:
-            pass
+            data = 'Not defined'
+            f = 'Not defined'
+            type_meas = 'Not defined'
+            date = 'Not defined'
+            vzorek = 'Not defined'
+            repeat = 'Not defined'
+            time = 'Not defined'
+            field = 'Not defined'
+            temp = 'Not defined'
+            folder = 'Not defined'
         if 'One polarity' in type_meas:
             one_pol.append(measurement_result(data,repeat,time,field,temp,vzorek,folder,date,type_meas))
         elif 'Standart MOKE' in type_meas:
@@ -362,20 +371,21 @@ def ukaz_LoadData(filenames):
             loop.append(measurement_result(data,repeat,time,field,temp,vzorek,folder,date,type_meas))
     return one_pol, moke, loop
 
-def uka(path = 'Not defined',sep = 1,pm = False, loop_energy = 'Not defined'): # TODO
+def uka(path = 'Not defined',sep = 1,pm = False, loop_energy = 'Not defined'): # TODO hnusny barvy smycka
     # Tato funkce ukaze konkretni mereni v adresari, ktere uzivatel vybere
     if path == 'Not defined':
         initial_dir = os.getcwd()
     else:
         initial_dir = path
+    initial_dir = r'C:\Users\tmale\OneDrive\Documents\Data\LSMO\Francie 2022\MOKE\PLD4150\loop\raw_data' # TODO delete
     root = Tk()
     root.withdraw()
     root.call('wm', 'attributes', '.', '-topmost', True)
-    filenames = filedialog.askopenfilename(initial_dir,title = "Select files",filetypes = (("txt files","*.dat .txt .KNT"),("all files","*.*")),multiple=True)
+    filenames = filedialog.askopenfilename(initialdir = initial_dir,title = "Select files",filetypes = (("txt files","*.dat .txt .KNT"),("all files","*.*")),multiple=True)
     root.destroy()
     onepol,moke,loop = ukaz_LoadData(filenames)
     if sep == 0:
-        onepol + moke + loop
+        fig, ax = plt.subplots()
         for meas in onepol:
             legenda = meas.sample
             if meas.temp != 'Not defined':
@@ -386,7 +396,7 @@ def uka(path = 'Not defined',sep = 1,pm = False, loop_energy = 'Not defined'): #
                 legenda = legenda + ' Time ' + str(meas.time)
             if meas.field != 'Not defined':
                 legenda = legenda + ' Field ' + str(meas.field)
-            plt.plot(meas.data['MOKE'], label = legenda)
+            ax.plot(meas.data['MOKE'], label = legenda)
         for meas in moke:
             legenda = meas.sample
             if meas.temp != 'Not defined':
@@ -396,11 +406,202 @@ def uka(path = 'Not defined',sep = 1,pm = False, loop_energy = 'Not defined'): #
             if meas.time != 'Not defined':
                 legenda = legenda + ' Time ' + str(meas.time)
             if pm:
-                names = meas.data.columns()
+                names = meas.data.columns
+                for name in names:
+                    ax.plot(meas.data[name], label = legenda+' '+str(name))
+            else:
+                ax.plot(meas.data['MOKE'], label = legenda)
+        for meas in loop:
+            legenda = meas.sample
+            if meas.temp != 'Not defined':
+                legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+            if meas.repeat != 'Not defined':
+                legenda = legenda + ' Repeat ' + str(meas.repeat)
+            if meas.time != 'Not defined':
+                legenda = legenda + ' Time ' + str(meas.time)
+            ax.plot(meas.data)
+            ax.lines[-1].set_label(legenda)
+        plt.title('All measurements')
+    if sep == 1:
+        for meas in onepol:
+            legenda = meas.sample
+            if meas.temp != 'Not defined':
+                legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+            if meas.repeat != 'Not defined':
+                legenda = legenda + ' Repeat ' + str(meas.repeat)
+            if meas.time != 'Not defined':
+                legenda = legenda + ' Time ' + str(meas.time)
+            if meas.field != 'Not defined':
+                legenda = legenda + ' Field ' + str(meas.field)
+            plt.figure(1)
+            plt.plot(meas.data['MOKE'], label = legenda)
+            plt.title('All one polarity of field measurements')
+        for meas in moke:
+            legenda = meas.sample
+            if meas.temp != 'Not defined':
+                legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+            if meas.repeat != 'Not defined':
+                legenda = legenda + ' Repeat ' + str(meas.repeat)
+            if meas.time != 'Not defined':
+                legenda = legenda + ' Time ' + str(meas.time)
+            plt.figure(2)
+            if pm:
+                names = meas.data.columns
                 for name in names:
                     plt.plot(meas.data[name], label = legenda+' '+str(name))
             else:
                 plt.plot(meas.data['MOKE'], label = legenda)
+            plt.title('All MOKE measurements')
+        fig, ax = plt.subplots() 
+        for meas in loop:
+            legenda = meas.sample
+            if meas.temp != 'Not defined':
+                print(meas.temp)
+                legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+            if meas.repeat != 'Not defined':
+                legenda = legenda + ' Repeat ' + str(meas.repeat)
+            if meas.time != 'Not defined':
+                legenda = legenda + ' Time ' + str(meas.time)
+            ax.plot(meas.data)
+            ax.lines[-1].set_label(legenda)
+            plt.title('All loop measurements')  
+    if sep == 2:
+        samples = []
+        for meas in onepol:
+            legenda = meas.sample
+            if meas.temp != 'Not defined':
+                legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+            if meas.repeat != 'Not defined':
+                legenda = legenda + ' Repeat ' + str(meas.repeat)
+            if meas.time != 'Not defined':
+                legenda = legenda + ' Time ' + str(meas.time)
+            if meas.field != 'Not defined':
+                legenda = legenda + ' Field ' + str(meas.field)
+            if meas.sample not in samples:
+                samples.append(meas.sample)
+            plt.figure(samples.index(meas.sample))
+            plt.plot(meas.data['MOKE'], label = legenda)
+        add = len(samples)
+        samples = []
+        for meas in moke:
+            legenda = meas.sample
+            if meas.temp != 'Not defined':
+                legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+            if meas.repeat != 'Not defined':
+                legenda = legenda + ' Repeat ' + str(meas.repeat)
+            if meas.time != 'Not defined':
+                legenda = legenda + ' Time ' + str(meas.time)
+            if meas.sample not in samples:
+                samples.append(meas.sample)
+            plt.figure(add+samples.index(meas.sample))
+            if pm:
+                names = meas.data.columns
+                for name in names:
+                    plt.plot(meas.data[name], label = legenda+' '+str(name))
+            else:
+                plt.plot(meas.data['MOKE'], label = legenda)
+        add = add + len(samples)
+        samples = []
+        figures = []
+        for meas in loop:
+            legenda = meas.sample
+            if meas.temp != 'Not defined':
+                legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+            if meas.repeat != 'Not defined':
+                legenda = legenda + ' Repeat ' + str(meas.repeat)
+            if meas.time != 'Not defined':
+                legenda = legenda + ' Time ' + str(meas.time)
+            if meas.sample not in samples:
+                samples.append(meas.sample)
+                fig, ax = plt.subplots()
+                figures.append(ax)
+            figures[samples.index(meas.sample)].plot(meas.data)
+            ax.lines[-1].set_label(legenda)
+            ax.set_title('Loop measurements of ' + meas.sample)
+    if sep == 3:
+        for meas in onepol:
+            legenda = meas.sample
+            if meas.temp != 'Not defined':
+                legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+            if meas.repeat != 'Not defined':
+                legenda = legenda + ' Repeat ' + str(meas.repeat)
+            if meas.time != 'Not defined':
+                legenda = legenda + ' Time ' + str(meas.time)
+            if meas.field != 'Not defined':
+                legenda = legenda + ' Field ' + str(meas.field)
+            plt.figure()
+            plt.plot(meas.data['MOKE'], label = legenda)
+            plt.title('One polarity of field measurement of '+ legenda)
+        for meas in moke:
+            legenda = meas.sample
+            if meas.temp != 'Not defined':
+                legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+            if meas.repeat != 'Not defined':
+                legenda = legenda + ' Repeat ' + str(meas.repeat)
+            if meas.time != 'Not defined':
+                legenda = legenda + ' Time ' + str(meas.time)
+            plt.figure()
+            if pm:
+                names = meas.data.columns
+                for name in names:
+                    plt.plot(meas.data[name], label = legenda+' '+str(name))
+            else:
+                plt.plot(meas.data['MOKE'], label = legenda)
+            plt.title('MOKE measurements of '+legenda) 
+        for meas in loop:
+            legenda = meas.sample
+            if meas.temp != 'Not defined':
+                print(meas.temp)
+                legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+            if meas.repeat != 'Not defined':
+                legenda = legenda + ' Repeat ' + str(meas.repeat)
+            if meas.time != 'Not defined':
+                legenda = legenda + ' Time ' + str(meas.time)
+            fig, ax = plt.subplots()
+            ax.plot(meas.data)
+            ax.lines[-1].set_label(legenda)
+            plt.title('Loop measurement of '+legenda)  
+    
+    for i in plt.get_fignums():
+        plt.figure(i)
+        plt.xlabel('Energy [eV]')
+        plt.ylabel('MOKE [deg]')
+        plt.legend()
+    if len(plt.get_fignums())>= 1:
+        last = plt.get_fignums()[-1]
+    samples = []
+    if isinstance(loop_energy, list):
+        for meas in loop:
+            legenda = meas.sample
+            if meas.temp != 'Not defined':
+                legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+            if meas.repeat != 'Not defined':
+                legenda = legenda + ' Repeat ' + str(meas.repeat)
+            if meas.time != 'Not defined':
+                legenda = legenda + ' Time ' + str(meas.time)
+            if sep == 0 or sep == 1:
+                plt.figure(last+1)
+            elif sep == 2:
+                if meas.sample not in samples:
+                    samples.append(meas.sample)
+                plt.figure(last+samples.index(meas.sample))
+            for energy in loop_energy:
+                if isinstance(energy, list):
+                    legenda = legenda +'\nIntegralni smycka s energiemi '+str(round(energy[0],2))+' - '+str(round(energy[1],2))
+                    meas.data = meas.data[meas.data.index>energy[0]]
+                    meas.data = meas.data[meas.data.index<energy[1]]
+                    loop_moke = []
+                    for column in meas.data.columns():
+                        loop_moke.append(meas.data[column].mean())
+                    pole = list(meas.data.loc[1].index)
+                    pole = [float(i.split('T')[0]) for i in pole]
+                    plt.plot(pole,loop_moke,label = legenda)
+                else:
+                    rowenergie = meas.data.index.get_loc(energy, 'nearest')
+                    pole = list(meas.data.iloc[rowenergie].index)
+                    pole = [float(i.split('T')[0]) for i in pole]
+                    legenda = legenda +'\nEnergie '+str(round(rowenergie,2))
+                    plt.plot(pole,list(meas.data.iloc[rowenergie]),label = legenda)
 
 def uka_vse(path = 'Not defined',pm = False, loop_energy = 'Not defined'): # TODO
     # Tato funkce ukaze vsechny mereni v adresari
@@ -418,7 +619,9 @@ def uka_vse(path = 'Not defined',pm = False, loop_energy = 'Not defined'): # TOD
 
 start = time.time()
 
-fitni()
+uka()
+
+plt.show()
 
 end = time.time()
 
@@ -433,10 +636,11 @@ print('Execution time: ',end-start,' seconds')
 #                  - ukaz : default false 
 
 # Funkce uka:    vyber si konkretni datasoubory
-#               - sep : 0,1,2   - jestli chces separovat grafy nebo ne: 0 ne, 1 podle typu, 2 podle jmena a typu
+#               - sep : 0,1,2   - jestli chces separovat grafy nebo ne: 0 ne, 1 podle typu, 2 podle jmena a typu, 3 vsechno single
 #               - path : default none
 #               - pm: default false
-#               - energie konkretni na smycku : default None
+#               - energie konkretni na smycku : default None - passuje se list energii. kdyz passnes list v listu
+#                                                              udela to integralni smycku v tom rozsahu
 
 # Funkce uka_vse:  ukaze to vsechny data sobory ve slozce
 #               - pm: default false
@@ -458,3 +662,5 @@ print('Execution time: ',end-start,' seconds')
 # Funkce odecti BG smycka
 #
 # Funkce vyplot findmin
+#
+# Help
