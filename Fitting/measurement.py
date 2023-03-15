@@ -137,16 +137,56 @@ class measurement_result:
         return '# Vzorek       ' + str(self.sample)+'\n# Repeat       ' + str(self.repeat)+ '\n# Time         ' + str(self.time)+ '\n# Field        ' + str(self.field) + '\n# Temperature  ' + str(self.temp)+  '\n# Folder path  '+str(self.folder)
     
 
-def help(fce = None):  # TODO
-    fitni_help = '- fitni(show = False,average = False)\n   - Fitne data ve vybrané složce'
-    uka_help = '- uka(path = \'Not defined\',sep = 1,pm = False, loop_energy = \'Not defined\')\n   - Ukaze MOKE/loop vybranych souboru' 
-    if fce == None:
-        here_you_go = 'V tomto programu existují následující funkce:\n'
+def help(funkce = None):  # TODO now fine, dont forget to update tho
+    fitni_help = '''- fitni(show = True,average = False, show_fit = 4.0)
+          - Fitne data ve vybrané složce a to i v podsložkách
+            - Parameter \'show\' udává, zda chcete data rovnou ukázat
+            - Parameter \'average\' říká, zda chcete data i zprůměrovat
+              - MOMENTÁLNĚ NEFUNKČNÍ
+            - Parameter \'show_fit\' udává, zda chcete ukázat konkrétní fity
+              - Přijímá jako hodnotu energii na které vám ukáže fit 
+              - MOMENTÁLNĚ NEFUNKČNÍ
+          '''
+    uka_help = '''- uka(path = \'Not defined\',sep = 1,pm = False, loop_energy = \'Not defined\')
+          - Ukáže MOKE/loop vybranych souboru
+            - Parameter \'sep\' rozhoduje, jak se data budou shlukovat do grafů:
+              - 0: Všechna data v jednom grafu
+              - 1: Všechny MOKE data v jednom grafu a všechny loop data v jednom grafu a stejně one polarity of field
+              - 2: V jednom grafu vždy všechna měření stejného vzorku a stejného typu měření
+              - 3: Každé měření ve svém grafu 
+            - Parameter \'pm\' udává, zda chceme vidět i plus/mínus pole u MOKE fitů
+            - Parameter \'path\' je defaultně prázdný, pokud ho určíte pak se Tkinter okno otevře v zadané složce
+            - Parameter \'loop_energy\' je pole energií na kterých udělat řez smyčky
+              Pokud je elementem pole další pole o dvou prvcích, pak dostanete integrální řez mezi těmito energiemi
+    ''' 
+    uka_vse_help = '''- uka_vse(path = \'Not defined\',pm = False, loop_energy = \'Not defined\')
+          - Ukáže všechna MOKE/loop měření ve vybraném adresáři a podadresářích
+            - Parameter \'path\' je volitelný, když zadáte, pak se fce vyhodnotí v zadané složce
+              pokud jej nezadáte, otevře se vám Tkinter okno
+            - Parameter \'pm\' udává, zda chceme vidět i plus/mínus pole u MOKE fitů
+            - Parameter \'loop_energy\' je pole energií na kterých udělat řez smyčky
+              Pokud je elementem pole další pole o dvou prvcích, pak dostanete integrální řez mezi těmito energiemi
+    '''
+    
+    fce = {
+        "fitni": fitni_help,
+        "uka": uka_help,
+        "uka_vse": uka_vse_help
+        }
+    if funkce == None:
+        here_you_go = '\nV tomto programu existují následující funkce:\n'
+        options = '''fitni\nuka\nuka_vse\n
+- Pokud chcete info o libovolné z funkcí zadejte:
+        help('jméno_funkce')
+        '''
         print(here_you_go)
-        print(fitni_help)
-        print(uka_help)
+        print(options)
     else:
-        pass
+        try:
+            print(fce[funkce])
+        except:
+            print('No such function in this module !!!')
+
 
 def LoadData(): 
     # Load all txt files in chosen directory
@@ -212,7 +252,7 @@ def LoadData():
     # Return a list of measurement class objects and opened folder path
     return measurement_list, folder
 
-def fitni(show = False): # TODO show, average
+def fitni(show = True): # TODO average, show_fit
     data,path = LoadData()
     for i in range(0,len(data)):
         data[i].fit()
@@ -234,9 +274,8 @@ def fitni(show = False): # TODO show, average
         else:
             save_smycka(mereni,path)
 
-    if show:  # TODO
-        # uka_vse(path)
-        pass
+    if show:
+        uka_vse(path)
 
 def save_one_polarity(data,path):
     path = path + '\\' + data[0].sample
@@ -730,13 +769,12 @@ cesta = r'C:\Users\tmale\OneDrive\Documents\Data\LSMO\Francie 2022\MOKE\PLD4150\
 
 start = time.time()
 
-uka_vse(path=cesta,pm = True)
+
+end = time.time()
+print('Execution time: ',end-start,' seconds')
 
 plt.show()
 
-end = time.time()
-
-print('Execution time: ',end-start,' seconds')
 
 
 # Funkce fitni - fitne jakekoli libovolne data. Parametry:
