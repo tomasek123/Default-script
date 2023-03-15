@@ -187,7 +187,7 @@ def LoadData():
     # Return a list of measurement class objects and opened folder path
     return measurement_list, folder
 
-def fitni():
+def fitni(show = False):
     data,path = LoadData()
     for i in range(0,len(data)):
         data[i].fit()
@@ -209,16 +209,25 @@ def fitni():
         else:
             save_smycka(mereni,path)
 
+    if show:  # TODO
+        # ukaz(path)
+        pass
+
 def save_one_polarity(data,path):
     path = path + '\\' + data[0].sample
+    legenda = data[0].sample
     if data[0].temp != 'Not defined':
         path = path + '_Temperature_' + str(data[0].temp) + 'K'
+        legenda = legenda + ' Temperature ' + str(data[0].temp) + 'K'
     if data[0].repeat != 'Not defined':
         path = path + '_Repeat_' + str(data[0].repeat)
+        legenda = legenda + ' Repeat ' + str(data[0].repeat)
     if data[0].time != 'Not defined':
         path = path + '_Time_' + str(data[0].time)
+        legenda = legenda + ' Time ' + str(data[0].time)
     if data[0].field != 'Not defined':
         path = path + '_Field_' + str(data[0].field) + 'T'
+        legenda = legenda + ' Field ' + str(data[0].field)
     path = path +'.dat'
 
     if os.path.exists(path):
@@ -239,13 +248,17 @@ def save_one_polarity(data,path):
     file.close()
 
 def save_kerr(data,path):
+    legenda = data[0].sample
     path = path + '\\' + data[0].sample
     if data[0].temp != 'Not defined':
         path = path + '_Temperature_' + str(data[0].temp) + 'K'
+        legenda = legenda + ' Temperature ' + str(data[0].temp) + 'K'
     if data[0].repeat != 'Not defined':
         path = path + '_Repeat_' + str(data[0].repeat)
+        legenda = legenda + ' Repeat ' + str(data[0].repeat)
     if data[0].time != 'Not defined':
         path = path + '_Time_' + str(data[0].time)
+        legenda = legenda + ' Time ' + str(data[0].time)
     path = path +'.dat'
 
     if os.path.exists(path):
@@ -269,7 +282,7 @@ def save_kerr(data,path):
     data_save['MOKE'] = (data[0].fitted['MOKE '+str(data[0].field)+'T'] - data[1].fitted['MOKE '+str(data[1].field)+'T'])/2
     data_save.to_csv(path,mode='a')
 
-def save_smycka(data,path):# TODO
+def save_smycka(data,path):
     path = path + '\\' + data[0].sample + '_smycka'
     if data[0].temp != 'Not defined':
         path = path + '_Temperature_' + str(data[0].temp) + 'K'
@@ -291,18 +304,21 @@ def save_smycka(data,path):# TODO
     file.write('\n')
     file.close()
 
-    # Jmena sloupcu, musi byt jina?? Vyzkousej... TODO
+    # Prejmenovavani sloupcu. Sloupce maji stejna jmena pri stejnem poli. 
+    # Pri pd_readcsv se nactou jako 1T a 1T.1 atd.
     data.sort(key = lambda x: int(x.list[0].RT.replace('_','')))
     data_save = data[0].fitted[['Fit']]
     data_save = data_save.rename(columns = {'Fit': str(data[0].field) + 'T'})
-    name_colum = [str(data[0].field) + 'T']
+    # name_colum = [str(data[0].field) + 'T']
+
+    # Zakomentovana cast kdyztak prejnemovava sloupce aby se nejmenovali stejne
     for i in range(1,len(data)):
         name_col_single = str(data[i].field) + 'T'
-        j = 2
-        while name_col_single in name_colum:
-            name_col_single = str(data[i].field) + 'T ' + str(j)
-            j = j + 1
-        name_colum.append(name_col_single)
+        # j = 2     
+        # while name_col_single in name_colum:
+        #     name_col_single = str(data[i].field) + 'T ' + str(j)
+        #     j = j + 1   
+        # name_colum.append(name_col_single)
         data[i].fitted = data[i].fitted.rename(columns = {'Fit': name_col_single})
         data_save = pd.concat([data_save,data[i].fitted[[name_col_single]]],axis=1, join='inner')
 
@@ -322,14 +338,16 @@ end = time.time()
 print('Execution time: ',end-start,' seconds')
 
 
-# Funkce fitni
-#               - nasledne ukaz : false
-#               - nasledne prumeruj : false     
+# Funkce fitni - fitne jakekoli libovolne data. Parametry:
+#               - ukaz : default false         TODO
+#               - prumeruj : default false     TODO
 
-# Funkce prumeruj
+# Funkce prumeruj - zprumeruje vybrana mereni
+#                  - ukaz : default false 
 
-# Funkce ukaz: - pm: default false
-#              - energie konkretni na smycku : default None
+# Funkce ukaz:  - path : nafituje to vsechny data sobory ve slozce
+#               - pm: default false
+#               - energie konkretni na smycku : default None
 
 # Funkce ukafit: ukaze fit na jedne energii 
 #              - energie : default 4 eV
