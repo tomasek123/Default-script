@@ -137,6 +137,17 @@ class measurement_result:
         return '# Vzorek       ' + str(self.sample)+'\n# Repeat       ' + str(self.repeat)+ '\n# Time         ' + str(self.time)+ '\n# Field        ' + str(self.field) + '\n# Temperature  ' + str(self.temp)+  '\n# Folder path  '+str(self.folder)
     
 
+def help(fce = None):  # TODO
+    fitni_help = '- fitni(show = False,average = False)\n   - Fitne data ve vybrané složce'
+    uka_help = '- uka(path = \'Not defined\',sep = 1,pm = False, loop_energy = \'Not defined\')\n   - Ukaze MOKE/loop vybranych souboru' 
+    if fce == None:
+        here_you_go = 'V tomto programu existují následující funkce:\n'
+        print(here_you_go)
+        print(fitni_help)
+        print(uka_help)
+    else:
+        pass
+
 def LoadData(): 
     # Load all txt files in chosen directory
     root = Tk()
@@ -377,7 +388,6 @@ def uka(path = 'Not defined',sep = 1,pm = False, loop_energy = 'Not defined'): #
         initial_dir = os.getcwd()
     else:
         initial_dir = path
-    initial_dir = r'C:\Users\tmale\OneDrive\Documents\Data\LSMO\Francie 2022\MOKE\PLD4150\loop\raw_data' # TODO delete
     root = Tk()
     root.withdraw()
     root.call('wm', 'attributes', '.', '-topmost', True)
@@ -452,7 +462,8 @@ def uka(path = 'Not defined',sep = 1,pm = False, loop_energy = 'Not defined'): #
             else:
                 plt.plot(meas.data['MOKE'], label = legenda)
             plt.title('All MOKE measurements')
-        fig, ax = plt.subplots() 
+        if len(loop)>0:    
+            fig, ax = plt.subplots() 
         for meas in loop:
             legenda = meas.sample
             if meas.temp != 'Not defined':
@@ -481,6 +492,7 @@ def uka(path = 'Not defined',sep = 1,pm = False, loop_energy = 'Not defined'): #
                 samples.append(meas.sample)
             plt.figure(samples.index(meas.sample))
             plt.plot(meas.data['MOKE'], label = legenda)
+            plt.title('One polarity of field of '+ str(meas.sample))
         add = len(samples)
         samples = []
         for meas in moke:
@@ -494,6 +506,7 @@ def uka(path = 'Not defined',sep = 1,pm = False, loop_energy = 'Not defined'): #
             if meas.sample not in samples:
                 samples.append(meas.sample)
             plt.figure(add+samples.index(meas.sample))
+            plt.title('Standart MOKE measurement of '+ str(meas.sample))
             if pm:
                 names = meas.data.columns
                 for name in names:
@@ -587,23 +600,28 @@ def uka(path = 'Not defined',sep = 1,pm = False, loop_energy = 'Not defined'): #
                 plt.figure(last+samples.index(meas.sample))
             for energy in loop_energy:
                 if isinstance(energy, list):
-                    legenda = legenda +'\nIntegralni smycka s energiemi '+str(round(energy[0],2))+' - '+str(round(energy[1],2))
+                    leg = legenda +'\nIntegralni smycka s energiemi '+str(round(energy[0],2))+' - '+str(round(energy[1],2)) + ' eV'
                     meas.data = meas.data[meas.data.index>energy[0]]
                     meas.data = meas.data[meas.data.index<energy[1]]
                     loop_moke = []
-                    for column in meas.data.columns():
+                    for column in meas.data.columns:
                         loop_moke.append(meas.data[column].mean())
-                    pole = list(meas.data.loc[1].index)
+                    pole = list(meas.data.columns)
                     pole = [float(i.split('T')[0]) for i in pole]
-                    plt.plot(pole,loop_moke,label = legenda)
+                    plt.plot(pole,loop_moke,label = leg)
                 else:
-                    rowenergie = meas.data.index.get_loc(energy, 'nearest')
-                    pole = list(meas.data.iloc[rowenergie].index)
+                    rowenergie = meas.data.index.get_indexer([energy], 'nearest')
+                    pole = list(meas.data.columns)
                     pole = [float(i.split('T')[0]) for i in pole]
-                    legenda = legenda +'\nEnergie '+str(round(rowenergie,2))
-                    plt.plot(pole,list(meas.data.iloc[rowenergie]),label = legenda)
+                    leg = legenda +'\nEnergie '+str(round(meas.data.index[rowenergie[0]],2)) + ' eV'
+                    plt.plot(pole,list(meas.data.iloc[rowenergie[0]]),label = leg)
+    for i in plt.get_fignums()[plt.get_fignums().index(last)+1:]:
+        plt.figure(i)
+        plt.xlabel('Field [T]')
+        plt.ylabel('MOKE [deg]')
+        plt.legend()
 
-def uka_vse(path = 'Not defined',pm = False, loop_energy = 'Not defined'): # TODO
+def uka_vse(path = 'Not defined',pm = False, loop_energy = 'Not defined'): # TODO barvicky loops
     # Tato funkce ukaze vsechny mereni v adresari
     if path == 'Not defined':
         root = Tk()
@@ -615,11 +633,104 @@ def uka_vse(path = 'Not defined',pm = False, loop_energy = 'Not defined'): # TOD
     Path_folder = pathlib.Path(path)
     filenames = list(Path_folder.rglob("*.dat")) 
     onepol,moke,loop = ukaz_LoadData(filenames)
+    samples = []
+    for meas in onepol:
+        legenda = meas.sample
+        if meas.temp != 'Not defined':
+            legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+        if meas.repeat != 'Not defined':
+            legenda = legenda + ' Repeat ' + str(meas.repeat)
+        if meas.time != 'Not defined':
+            legenda = legenda + ' Time ' + str(meas.time)
+        if meas.field != 'Not defined':
+            legenda = legenda + ' Field ' + str(meas.field)
+        if meas.sample not in samples:
+            samples.append(meas.sample)
+        plt.figure(samples.index(meas.sample))
+        plt.plot(meas.data['MOKE'], label = legenda)
+        plt.title('One poalrity of field of '+ str(meas.sample))
+    add = len(samples)
+    samples = []
+    for meas in moke:
+        legenda = meas.sample
+        if meas.temp != 'Not defined':
+            legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+        if meas.repeat != 'Not defined':
+            legenda = legenda + ' Repeat ' + str(meas.repeat)
+        if meas.time != 'Not defined':
+            legenda = legenda + ' Time ' + str(meas.time)
+        if meas.sample not in samples:
+            samples.append(meas.sample)
+        plt.figure(add+samples.index(meas.sample))
+        if pm:
+            names = meas.data.columns
+            for name in names:
+                plt.plot(meas.data[name], label = legenda+' '+str(name))
+        else:
+            plt.plot(meas.data['MOKE'], label = legenda)
+        plt.title('Standart MOKE measurement of '+ str(meas.sample))
+    for meas in loop:
+        legenda = meas.sample
+        if meas.temp != 'Not defined':
+            legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+        if meas.repeat != 'Not defined':
+            legenda = legenda + ' Repeat ' + str(meas.repeat)
+        if meas.time != 'Not defined':
+            legenda = legenda + ' Time ' + str(meas.time)
+        fig, ax = plt.subplots()
+        ax.plot(meas.data)
+        ax.lines[-1].set_label(legenda)
+        ax.set_title('Loop measurements of ' + meas.sample)
+    for i in plt.get_fignums():
+        plt.figure(i)
+        plt.xlabel('Energy [eV]')
+        plt.ylabel('MOKE [deg]')
+        plt.legend()
+    if len(plt.get_fignums())>= 1:
+        last = plt.get_fignums()[-1]
+    if isinstance(loop_energy, list):
+        for meas in loop:
+            legenda = meas.sample
+            if meas.temp != 'Not defined':
+                legenda = legenda + ' Temperature ' + str(meas.temp) + 'K'
+            if meas.repeat != 'Not defined':
+                legenda = legenda + ' Repeat ' + str(meas.repeat)
+            if meas.time != 'Not defined':
+                legenda = legenda + ' Time ' + str(meas.time)
+            plt.figure()
+            for energy in loop_energy:
+                if isinstance(energy, list):
+                    leg = legenda +'\nIntegralni smycka s energiemi '+str(round(energy[0],2))+' - '+str(round(energy[1],2)) + ' eV'
+                    meas.data = meas.data[meas.data.index>energy[0]]
+                    meas.data = meas.data[meas.data.index<energy[1]]
+                    loop_moke = []
+                    for column in meas.data.columns:
+                        loop_moke.append(meas.data[column].mean())
+                    pole = list(meas.data.columns)
+                    pole = [float(i.split('T')[0]) for i in pole]
+                    plt.plot(pole,loop_moke,label = leg)
+                else:
+                    rowenergie = meas.data.index.get_indexer([energy], 'nearest')
+                    pole = list(meas.data.columns)
+                    pole = [float(i.split('T')[0]) for i in pole]
+                    leg = legenda +'\nEnergie '+str(round(meas.data.index[rowenergie[0]],2)) + ' eV'
+                    plt.plot(pole,list(meas.data.iloc[rowenergie[0]]),label = leg)
 
+    for i in plt.get_fignums()[plt.get_fignums().index(last)+1:]:
+        plt.figure(i)
+        plt.xlabel('Field [T]')
+        plt.ylabel('MOKE [deg]')
+        plt.legend()
+
+
+##########################################################################################################################
+##########################################################################################################################
+
+cesta = r'C:\Users\tmale\OneDrive\Documents\Data\LSMO\Francie 2022\MOKE\PLD4150\loop\raw_data' 
 
 start = time.time()
 
-uka()
+uka_vse(path=cesta,pm = True)
 
 plt.show()
 
@@ -631,6 +742,7 @@ print('Execution time: ',end-start,' seconds')
 # Funkce fitni - fitne jakekoli libovolne data. Parametry:
 #               - ukaz : default false         TODO
 #               - prumeruj : default false     TODO
+#               - ukafit - TODO default True, default 4 eV
 
 # Funkce prumeruj - zprumeruje vybrana mereni
 #                  - ukaz : default false 
