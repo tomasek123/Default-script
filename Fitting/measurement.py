@@ -780,7 +780,6 @@ def uka_vse(path = 'Not defined',num = 1,pm = False, loop_energy = 'Not defined'
     except:
         pass
 
-
 def elip(path = 'Not defined',show = True, save = True): #TODO info hlavicka, TODO prumerovani kdyz vyberes vic souboru
     if path == 'Not defined':
         initial_dir = os.getcwd()
@@ -829,7 +828,6 @@ def elip(path = 'Not defined',show = True, save = True): #TODO info hlavicka, TO
         ax = plt.subplot()
         ax.plot(result['MOKE'], label = 'Elipticita')
         ax.plot(result['Elipticita'], label = 'Rotace')
-    plt.show()
 
 ##########################################################################################################################
 ##########################################################################################################################
@@ -838,15 +836,12 @@ cesta = r'C:\Users\tmale\OneDrive\Documents\Data\LSMO\Francie 2022\MOKE\PLD4150\
 
 start = time.time()
 
-elip()
-
+uka()
 
 end = time.time()
 print('Execution time: ',end-start,' seconds')
 
 plt.show()
-
-
 
 # Funkce prumeruj - zprumeruje vybrana mereni
 #                  - ukaz : default false 
