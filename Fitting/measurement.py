@@ -252,7 +252,7 @@ def LoadData():
     # Return a list of measurement class objects and opened folder path
     return measurement_list, folder
 
-def fitni(show = True): # TODO average, show_fit
+def fitni(show = True): # TODO average, show_fit, TODO debug na labe??
     data,path = LoadData()
     for i in range(0,len(data)):
         data[i].fit()
@@ -265,7 +265,7 @@ def fitni(show = True): # TODO average, show_fit
                 if data[i].repeat == data[j].repeat and data[i].time == data[j].time and data[i].temp == data[j].temp and data[i].sample == data[j].sample and data[i].folder == data[j].folder:
                     splacnuto[-1].append(data[j])
                     done.append(j)
-
+    print('\nDone fitting!\n')
     for mereni in splacnuto:
         if len(mereni) == 1:
             save_one_polarity(mereni,path)
@@ -654,11 +654,14 @@ def uka(path = 'Not defined',sep = 1,pm = False, loop_energy = 'Not defined'): #
                     pole = [float(i.split('T')[0]) for i in pole]
                     leg = legenda +'\nEnergie '+str(round(meas.data.index[rowenergie[0]],2)) + ' eV'
                     plt.plot(pole,list(meas.data.iloc[rowenergie[0]]),label = leg)
-    for i in plt.get_fignums()[plt.get_fignums().index(last)+1:]:
-        plt.figure(i)
-        plt.xlabel('Field [T]')
-        plt.ylabel('MOKE [deg]')
-        plt.legend()
+    try:
+        for i in plt.get_fignums()[plt.get_fignums().index(last)+1:]:
+            plt.figure(i)
+            plt.xlabel('Field [T]')
+            plt.ylabel('MOKE [deg]')
+            plt.legend()
+    except:
+        pass
 
 def uka_vse(path = 'Not defined',pm = False, loop_energy = 'Not defined'): # TODO barvicky loops
     # Tato funkce ukaze vsechny mereni v adresari
@@ -754,13 +757,51 @@ def uka_vse(path = 'Not defined',pm = False, loop_energy = 'Not defined'): # TOD
                     pole = [float(i.split('T')[0]) for i in pole]
                     leg = legenda +'\nEnergie '+str(round(meas.data.index[rowenergie[0]],2)) + ' eV'
                     plt.plot(pole,list(meas.data.iloc[rowenergie[0]]),label = leg)
+    try:
+        for i in plt.get_fignums()[plt.get_fignums().index(last)+1:]:
+            plt.figure(i)
+            plt.xlabel('Field [T]')
+            plt.ylabel('MOKE [deg]')
+            plt.legend()
+    except:
+        pass
 
-    for i in plt.get_fignums()[plt.get_fignums().index(last)+1:]:
-        plt.figure(i)
-        plt.xlabel('Field [T]')
-        plt.ylabel('MOKE [deg]')
-        plt.legend()
 
+def elip(path = 'Not defined',show = True, save = True): #TODO
+    if path == 'Not defined':
+        initial_dir = os.getcwd()
+    else:
+        initial_dir = path
+    root = Tk()
+    root.withdraw()
+    root.call('wm', 'attributes', '.', '-topmost', True)
+    rotation = filedialog.askopenfilename(initialdir = initial_dir,title = "Select Kerr rotation",filetypes = (("txt files","*.dat .txt .KNT"),("all files","*.*")),multiple=False)
+    root.destroy()
+    root = Tk()
+    root.withdraw()
+    root.call('wm', 'attributes', '.', '-topmost', True)
+    waveplates = filedialog.askopenfilename(initialdir = initial_dir,title = "Select waveplates",filetypes = (("txt files","*.dat .txt .KNT"),("all files","*.*")),multiple=False)
+    root.destroy()
+    fuck,data,this = ukaz_LoadData([rotation,waveplates])
+    result = pd.concat([data[0].data,data[1].data.rename(columns = {'MOKE':'Plates'})],axis=1, join='inner')
+    result = result.sort_index()
+    result = result.interpolate(method = 'index')
+    result = result[~result.index.duplicated(keep='first')] # drop duplicate indexes
+    result = result[~result.isin([np.nan]).any(axis=1)] 
+    energy = np.array(result.index.astype(float))
+    lmbda = 1239.8/energy
+    K = np.power(lmbda,2)
+    W = 1- 93.0665**2/K
+    Q = 1/(np.power(W,2) * lmbda * np.sqrt(1+136.24/W))
+    delta = (Q * 1.69508759865 * 100000 + 2.884488929) * np.pi/180
+    elipticita = - (np.array(result['Plates']) - np.array(result['MOKE'])*np.cos(delta))/np.sin(delta)
+    result['Elipticita'] = elipticita.tolist()
+    result.drop(columns=['Plates'])
+    if save:
+        result.to_csv() # TODO
+    if show:    # TODO
+        plt.plot(elipticita['MOKE'], label = 'Elipticita')          # Debilku tenhle sobour musi znova nafitovat
+        plt.plot(rot_data['MOKE'], label = 'Rotace')
 
 ##########################################################################################################################
 ##########################################################################################################################
@@ -769,6 +810,7 @@ cesta = r'C:\Users\tmale\OneDrive\Documents\Data\LSMO\Francie 2022\MOKE\PLD4150\
 
 start = time.time()
 
+fitni()
 
 end = time.time()
 print('Execution time: ',end-start,' seconds')
@@ -777,25 +819,8 @@ plt.show()
 
 
 
-# Funkce fitni - fitne jakekoli libovolne data. Parametry:
-#               - ukaz : default false         TODO
-#               - prumeruj : default false     TODO
-#               - ukafit - TODO default True, default 4 eV
-
 # Funkce prumeruj - zprumeruje vybrana mereni
 #                  - ukaz : default false 
-
-# Funkce uka:    vyber si konkretni datasoubory
-#               - sep : 0,1,2   - jestli chces separovat grafy nebo ne: 0 ne, 1 podle typu, 2 podle jmena a typu, 3 vsechno single
-#               - path : default none
-#               - pm: default false
-#               - energie konkretni na smycku : default None - passuje se list energii. kdyz passnes list v listu
-#                                                              udela to integralni smycku v tom rozsahu
-
-# Funkce uka_vse:  ukaze to vsechny data sobory ve slozce
-#               - pm: default false
-#               - path : default none
-#               - energie konkretni na smycku : default None
 
 # Funkce ukafit: ukaze fit na jedne energii 
 #              - energie : default 4 eV
