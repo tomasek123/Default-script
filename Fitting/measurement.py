@@ -147,20 +147,22 @@ def help(funkce = None):  # TODO now fine, dont forget to update tho
               - Přijímá jako hodnotu energii na které vám ukáže fit 
               - MOMENTÁLNĚ NEFUNKČNÍ
           '''
-    uka_help = '''- uka(path = \'Not defined\',sep = 1,pm = False, loop_energy = \'Not defined\')
+    uka_help = '''- uka(path = \'Not defined\',num = 1,sep = 1,pm = False, loop_energy = \'Not defined\')
           - Ukáže MOKE/loop vybranych souboru
             - Parameter \'sep\' rozhoduje, jak se data budou shlukovat do grafů:
               - 0: Všechna data v jednom grafu
               - 1: Všechny MOKE data v jednom grafu a všechny loop data v jednom grafu a stejně one polarity of field
               - 2: V jednom grafu vždy všechna měření stejného vzorku a stejného typu měření
               - 3: Každé měření ve svém grafu 
+            - Parameter \'num\' udává počet složek, ze kterých chcete měření brát
             - Parameter \'pm\' udává, zda chceme vidět i plus/mínus pole u MOKE fitů
             - Parameter \'path\' je defaultně prázdný, pokud ho určíte pak se Tkinter okno otevře v zadané složce
             - Parameter \'loop_energy\' je pole energií na kterých udělat řez smyčky
               Pokud je elementem pole další pole o dvou prvcích, pak dostanete integrální řez mezi těmito energiemi
     ''' 
-    uka_vse_help = '''- uka_vse(path = \'Not defined\',pm = False, loop_energy = \'Not defined\')
+    uka_vse_help = '''- uka_vse(path = \'Not defined\',num = 1,pm = False, loop_energy = \'Not defined\')
           - Ukáže všechna MOKE/loop měření ve vybraném adresáři a podadresářích
+            - Parameter \'num\' udává počet složek, ze kterých chcete měření brát
             - Parameter \'path\' je volitelný, když zadáte, pak se fce vyhodnotí v zadané složce
               pokud jej nezadáte, otevře se vám Tkinter okno
             - Parameter \'pm\' udává, zda chceme vidět i plus/mínus pole u MOKE fitů
@@ -198,7 +200,7 @@ def LoadData():
     root.destroy()
     Path_folder = pathlib.Path(folder)
     files = list(Path_folder.rglob("*.txt"))
-
+    files.sort(key = lambda x: str(x).rsplit('\\',1)[1][0:18])
     # Initialize a list of all spectra and of all measurement configurations
     # spectra_list is a 2D list, for each measurement it contains a list of all spectra
     spectra_list = []
@@ -252,7 +254,7 @@ def LoadData():
     # Return a list of measurement class objects and opened folder path
     return measurement_list, folder
 
-def fitni(show = True): # TODO average, show_fit, TODO debug na labe??
+def fitni(show = True): # TODO average, show_fit
     data,path = LoadData()
     for i in range(0,len(data)):
         data[i].fit()
@@ -421,16 +423,18 @@ def ukaz_LoadData(filenames):
             loop.append(measurement_result(data,repeat,time,field,temp,vzorek,folder,date,type_meas))
     return one_pol, moke, loop
 
-def uka(path = 'Not defined',sep = 1,pm = False, loop_energy = 'Not defined'): # TODO hnusny barvy smycka
+def uka(path = 'Not defined',num = 1,sep = 1,pm = False, loop_energy = 'Not defined'): # TODO hnusny barvy smycka
     # Tato funkce ukaze konkretni mereni v adresari, ktere uzivatel vybere
     if path == 'Not defined':
         initial_dir = os.getcwd()
     else:
         initial_dir = path
-    root = Tk()
-    root.withdraw()
-    root.call('wm', 'attributes', '.', '-topmost', True)
-    filenames = filedialog.askopenfilename(initialdir = initial_dir,title = "Select files",filetypes = (("txt files","*.dat .txt .KNT"),("all files","*.*")),multiple=True)
+    filenames = []
+    for i in range(num):
+        root = Tk()
+        root.withdraw()
+        root.call('wm', 'attributes', '.', '-topmost', True)
+        filenames = filenames + list(filedialog.askopenfilename(initialdir = initial_dir,title = "Select files",filetypes = (("txt files","*.dat .txt .KNT"),("all files","*.*")),multiple=True))
     root.destroy()
     onepol,moke,loop = ukaz_LoadData(filenames)
     if sep == 0:
@@ -663,7 +667,7 @@ def uka(path = 'Not defined',sep = 1,pm = False, loop_energy = 'Not defined'): #
     except:
         pass
 
-def uka_vse(path = 'Not defined',pm = False, loop_energy = 'Not defined'): # TODO barvicky loops
+def uka_vse(path = 'Not defined',num = 1,pm = False, loop_energy = 'Not defined'): # TODO barvicky loops
     # Tato funkce ukaze vsechny mereni v adresari
     if path == 'Not defined':
         root = Tk()
@@ -674,6 +678,16 @@ def uka_vse(path = 'Not defined',pm = False, loop_energy = 'Not defined'): # TOD
         root.destroy()
     Path_folder = pathlib.Path(path)
     filenames = list(Path_folder.rglob("*.dat")) 
+    if num>1:
+        for i in range(num-1):
+            root = Tk()
+            root.withdraw()
+            root.call('wm', 'attributes', '.', '-topmost', True)
+            initial_dir = os.getcwd()
+            path = filedialog.askdirectory(initialdir = initial_dir,title = "Select measurement folders")
+            root.destroy()
+            Path_folder = pathlib.Path(path)
+            filenames = filenames + list(Path_folder.rglob("*.dat")) 
     onepol,moke,loop = ukaz_LoadData(filenames)
     samples = []
     for meas in onepol:
@@ -810,7 +824,8 @@ cesta = r'C:\Users\tmale\OneDrive\Documents\Data\LSMO\Francie 2022\MOKE\PLD4150\
 
 start = time.time()
 
-fitni()
+uka_vse(num = 5)
+
 
 end = time.time()
 print('Execution time: ',end-start,' seconds')
