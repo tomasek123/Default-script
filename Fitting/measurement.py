@@ -386,7 +386,7 @@ def save_smycka(data,path):
     data_save.to_csv(path,mode='a')
     
 
-def ukaz_LoadData(filenames):
+def ukaz_LoadData(filenames): # TODO full MOKE
     # Nacte soubory jiz vyfitovanych dat
     one_pol = []
     moke = []
@@ -423,7 +423,7 @@ def ukaz_LoadData(filenames):
             loop.append(measurement_result(data,repeat,time,field,temp,vzorek,folder,date,type_meas))
     return one_pol, moke, loop
 
-def uka(path = 'Not defined',num = 1,sep = 1,pm = False, loop_energy = 'Not defined'): # TODO hnusny barvy smycka
+def uka(path = 'Not defined',num = 1,sep = 1,pm = False, loop_energy = 'Not defined'): # TODO full MOKE # TODO hnusny barvy smycka
     # Tato funkce ukaze konkretni mereni v adresari, ktere uzivatel vybere
     if path == 'Not defined':
         initial_dir = os.getcwd()
@@ -667,7 +667,7 @@ def uka(path = 'Not defined',num = 1,sep = 1,pm = False, loop_energy = 'Not defi
     except:
         pass
 
-def uka_vse(path = 'Not defined',num = 1,pm = False, loop_energy = 'Not defined'): # TODO barvicky loops
+def uka_vse(path = 'Not defined',num = 1,pm = False, loop_energy = 'Not defined'): # TODO full MOKE # TODO barvicky loops
     # Tato funkce ukaze vsechny mereni v adresari
     if path == 'Not defined':
         root = Tk()
@@ -781,7 +781,7 @@ def uka_vse(path = 'Not defined',num = 1,pm = False, loop_energy = 'Not defined'
         pass
 
 
-def elip(path = 'Not defined',show = True, save = True): #TODO
+def elip(path = 'Not defined',show = True, save = True): #TODO info hlavicka, TODO prumerovani kdyz vyberes vic souboru
     if path == 'Not defined':
         initial_dir = os.getcwd()
     else:
@@ -794,6 +794,7 @@ def elip(path = 'Not defined',show = True, save = True): #TODO
     root = Tk()
     root.withdraw()
     root.call('wm', 'attributes', '.', '-topmost', True)
+    initial_dir = rotation.rsplit('/',1)[0]
     waveplates = filedialog.askopenfilename(initialdir = initial_dir,title = "Select waveplates",filetypes = (("txt files","*.dat .txt .KNT"),("all files","*.*")),multiple=False)
     root.destroy()
     fuck,data,this = ukaz_LoadData([rotation,waveplates])
@@ -812,10 +813,23 @@ def elip(path = 'Not defined',show = True, save = True): #TODO
     result['Elipticita'] = elipticita.tolist()
     result.drop(columns=['Plates'])
     if save:
-        result.to_csv() # TODO
-    if show:    # TODO
-        plt.plot(elipticita['MOKE'], label = 'Elipticita')          # Debilku tenhle sobour musi znova nafitovat
-        plt.plot(rot_data['MOKE'], label = 'Rotace')
+        path_save = rotation.rsplit('/',1)[0]+'\\'+str(data[0].sample)+'_Full_MOKE.dat'
+        if os.path.exists(path_save):
+            if askyesno(title='File exists', message='File already exists. Do you want to overwrite it?\nOne polarity measurement\n'+str(data[0])):
+                os.remove(path_save)
+            else:
+                return
+        file = open(path_save,'a')
+        file.write('# Type of measurement: Full MOKE +- ' + str(abs(data[0].field)) + 'T\n' )
+        file.write(data[0].standart_moke_str()) # TODO tohle je potreba zadefinovat v classe, nezapomen na datum
+        file.write('\n')
+        file.close()
+        result.to_csv(path_save,mode='a')
+    if show:
+        ax = plt.subplot()
+        ax.plot(result['MOKE'], label = 'Elipticita')
+        ax.plot(result['Elipticita'], label = 'Rotace')
+    plt.show()
 
 ##########################################################################################################################
 ##########################################################################################################################
@@ -824,7 +838,7 @@ cesta = r'C:\Users\tmale\OneDrive\Documents\Data\LSMO\Francie 2022\MOKE\PLD4150\
 
 start = time.time()
 
-uka_vse(num = 5)
+elip()
 
 
 end = time.time()
