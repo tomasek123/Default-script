@@ -2,11 +2,14 @@ import os
 from tkinter import filedialog
 from tkinter import *
 from tkinter.messagebox import *
+from tkinter import messagebox
+import tkinter.simpledialog as sm
 import pathlib
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+from tqdm import tqdm
 
 # Upozorneni !!!
 # Momentalni verze funguje pouze pro pole v x-ovem smeru !!!
@@ -122,7 +125,7 @@ class measurement:
         return data
 
 class measurement_result:
-    def __init__(self,data,repeat,time,field,temp,sample,folder_path,date,type_meas):
+    def __init__(self,data,repeat,time,field,temp,sample,folder_path,date,type_meas,path):
         self.repeat = repeat          # Repeat
         self.time = time              # Time (repetice ne real time)
         self.field = field            # Pole
@@ -132,36 +135,34 @@ class measurement_result:
         self.data = data              # dataframe dat
         self.date = date              # Date measured
         self.type = type_meas         # Measurement type eg loop, moke,one polarity of field
+        self.path = path              # Path souboru
+        if 'No BG' in type_meas:
+            self.bg_sub = True
+        else:
+            self.bg_sub = False
 
     def __str__(self):
-        return '# Vzorek       ' + str(self.sample)+'\n# Repeat       ' + str(self.repeat)+ '\n# Time         ' + str(self.time)+ '\n# Field        ' + str(self.field) + '\n# Temperature  ' + str(self.temp)+  '\n# Folder path  '+str(self.folder)
-
-class Full_moke: # TODO
-    def __init__(self,data,field,temp,sample,folder_path,date,type_meas):
+        if self.bg_sub:
+            return '# Vzorek:       ' + str(self.sample)+'\n# Repeat:       ' + str(self.repeat)+ '\n# Time:         ' + str(self.time)+ '\n# Field:        ' + str(self.field) + '\n# Temperature:  ' + str(self.temp)+  '\n# Folder path:  '+str(self.folder)+'\n# Background:   Subtracted'
+        else:
+            return '# Vzorek:       ' + str(self.sample)+'\n# Repeat:       ' + str(self.repeat)+ '\n# Time:         ' + str(self.time)+ '\n# Field:        ' + str(self.field) + '\n# Temperature:  ' + str(self.temp)+  '\n# Folder path:  '+str(self.folder)
+class Full_moke:
+    def __init__(self,data,field,temp,sample,path,date,type_meas):
         self.field = field            # Pole
         self.temp = temp              # Teplota
         self.sample = sample          # sample name
-        self.folder = folder_path     # pathy na soubory jednotlivych zpracovanych mereni
+        self.path = path              # pathy na soubory jednotlivych zpracovanych mereni
         self.data = data              # dataframe dat
         self.date = date              # Dates measured, list
         self.type = type_meas         # Measurement type eg loop, moke,one polarity of field
 
-    def __str__(self):
-        rot = ''
-        el = ''
-        for i in self.folder[0]:
-            rot = rot+'\n#               '+i
-        for i in self.folder[1]:
-            el = el+'\n#               '+i
-        return '# Vzorek        ' + str(self.sample)+ '\n# Field         ' + str(self.field) + '\n# Temperature   ' + str(self.temp)+  '\n# Rotation data '+rot+  '\n# Elip data     '+el+'\n'
-    
     def print_fm(self): # print full moke
         dates = ''
         for i in self.date:
             if i not in dates:
                 dates = dates +'\n                      '
         rot = ''
-        for i in self.folder:
+        for i in self.path:
             rot = rot+'\n#               '+i
         return '# Type of measurement: '+self.type + '# Vzorek:       ' + str(self.sample)+'\n# Field:        ' + str(abs(self.field)) + '\n# Temperature:  ' + str(self.temp)+'\n# Dates measured: '+dates+ '\n# Raw data:      '+rot+'\n'
 
@@ -171,12 +172,12 @@ class Full_moke: # TODO
             if i not in dates:
                 dates = dates +'\n                      '
         pathy = ''
-        for i in self.folder:
+        for i in self.path:
             pathy = pathy+'\n#               '+i
         return '# Type of measurement: '+self.type + '# Vzorek:       ' + str(self.sample)+'\n# Field:        ' + str(abs(self.field)) + '\n# Temperature:  ' + str(self.temp)+'\n# Dates measured: '+dates+ '\n# Paths:    '+pathy+'\n'
 
 
-def help(funkce = None):  # TODO now fine, dont forget to update tho
+def help(funkce = None):  # TODO prumer, bg
     fitni_help = '''- fitni(show = True,average = False, show_fit = 4.0)
           - Fitne data ve vybrané složce a to i v podsložkách
             - Parameter \'show\' udává, zda chcete data rovnou ukázat
@@ -208,15 +209,22 @@ def help(funkce = None):  # TODO now fine, dont forget to update tho
             - Parameter \'loop_energy\' je pole energií na kterých udělat řez smyčky
               Pokud je elementem pole další pole o dvou prvcích, pak dostanete integrální řez mezi těmito energiemi
     '''
+    elip_help = '''- elip(path = 'Not defined',show = True, save = True)
+          - Spočte elipticitu z měření rotace a desek
+            - Parameter \'path\' udává výchozí složku ve které se otevře Tkinter okno
+            - Parameter \'show\' udává, zda chcete zobrazit výsledný graf
+            - Parameter \'save\' udává, zda chcete výsledná data uložit
+    '''
     
     fce = {
         "fitni": fitni_help,
         "uka": uka_help,
-        "uka_vse": uka_vse_help
+        "uka_vse": uka_vse_help,
+        "elip": elip_help
         }
     if funkce == None:
         here_you_go = '\nV tomto programu existují následující funkce:\n'
-        options = '''fitni\nuka\nuka_vse\n
+        options = '''fitni\nuka\nuka_vse\nelip\n
 - Pokud chcete info o libovolné z funkcí zadejte:
         help('jméno_funkce')
         '''
@@ -227,7 +235,6 @@ def help(funkce = None):  # TODO now fine, dont forget to update tho
             print(fce[funkce])
         except:
             print('No such function in this module !!!')
-
 
 def LoadData(): 
     # Load all txt files in chosen directory
@@ -248,7 +255,8 @@ def LoadData():
 
     # for each path to a txt measurement file disect its name into components
     # and load it into the spectra class
-    for file in files:
+    print('\nLoading files')
+    for file in tqdm(files):
         name = str(file).rsplit('\\',1)[1]
         path = str(file).rsplit('\\',1)[0]
         try:
@@ -293,9 +301,10 @@ def LoadData():
     # Return a list of measurement class objects and opened folder path
     return measurement_list, folder
 
-def fitni(show = True): # TODO average, show_fit, path
+def fitni(show = True): # TODO path, show_fit
     data,path = LoadData()
-    for i in range(0,len(data)):
+    print('\nFitting')
+    for i in tqdm(range(0,len(data))):
         data[i].fit()
     splacnuto = []
     done = []
@@ -306,7 +315,6 @@ def fitni(show = True): # TODO average, show_fit, path
                 if data[i].repeat == data[j].repeat and data[i].time == data[j].time and data[i].temp == data[j].temp and data[i].sample == data[j].sample and data[i].folder == data[j].folder:
                     splacnuto[-1].append(data[j])
                     done.append(j)
-    print('\nDone fitting!\n')
     for mereni in splacnuto:
         if len(mereni) == 1:
             save_one_polarity(mereni,path)
@@ -314,7 +322,6 @@ def fitni(show = True): # TODO average, show_fit, path
             save_kerr(mereni,path)
         else:
             save_smycka(mereni,path)
-
     if show:
         uka_vse(path)
 
@@ -343,7 +350,7 @@ def save_one_polarity(data,path):
     file.write('# Date measured:       ' + data[0].list[0].RT[6:8] + '.' + data[0].list[0].RT[4:6]+'.'+data[0].list[0].RT[:4]+'\n')
     file.write(str(data[0].standart_moke_str()))
     file.write('\n')
-    data[0].fitted.rename(columns = {'Fit':'MOKE'})
+    data[0].fitted = data[0].fitted.rename(columns = {'Fit':'MOKE'})
     data[0].fitted.to_csv(file)
     file.close()
 
@@ -396,7 +403,8 @@ def save_smycka(data,path):
     file = open(path,'a')
     file.write('# Type of measurement: Loop MOKE measurement\n' )
     file.write('# Date measured:       ' + data[0].list[0].RT[6:8] + '.' + data[0].list[0].RT[4:6]+'.'+data[0].list[0].RT[:4]+'\n')
-    file.write(data[0].standart_moke_str())
+    max_field = sorted(data,key = lambda x: x.field)
+    file.write(max_field[0].standart_moke_str())
     file.write('\n')
     file.close()
 
@@ -424,7 +432,6 @@ def save_smycka(data,path):
     data_save = data_save[~data_save.isin([np.nan]).any(axis=1)] 
     data_save.to_csv(path,mode='a')
     
-
 def ukaz_LoadData(filenames): # TODO savitzky golay, background odecet
     # Nacte soubory jiz vyfitovanych dat
     one_pol = []
@@ -434,6 +441,7 @@ def ukaz_LoadData(filenames): # TODO savitzky golay, background odecet
     pm = []
     for file in filenames:
         try:
+            path = file
             data = pd.read_csv(file, comment='#', index_col=0)
             f = open(file,'r')
             type_meas = f.readline().rsplit(': ')[1].strip()
@@ -447,13 +455,13 @@ def ukaz_LoadData(filenames): # TODO savitzky golay, background odecet
                 while 'data' not in lajna:
                     dates.append(lajna.rsplit('# ')[1].strip())
                     lajna = f.readline()
-                folder = []
-                folder.append(lajna.rsplit(': ')[1].strip())
+                path = []
+                path.append(lajna.rsplit(': ')[1].strip())
                 lajna = f.readline()
                 while '#' in lajna:
-                    folder.append(lajna.rsplit('# ')[1].strip())
+                    path.append(lajna.rsplit('# ')[1].strip())
                     lajna = f.readline()
-            elif 'Průměr' in type_meas:
+            elif 'Prumer' in type_meas:
                 vzorek = f.readline().rsplit(': ')[1].strip()
                 field = f.readline().rsplit(': ')[1].strip()
                 temp = f.readline().rsplit(': ')[1].strip()
@@ -463,11 +471,11 @@ def ukaz_LoadData(filenames): # TODO savitzky golay, background odecet
                 while 'Path' not in lajna:
                     dates.append(lajna.rsplit('# ')[1].strip())
                     lajna = f.readline()
-                folder = []
-                folder.append(lajna.rsplit(': ')[1].strip())
+                path = []
+                path.append(lajna.rsplit(': ')[1].strip())
                 lajna = f.readline()
                 while '#' in lajna:
-                    folder.append(lajna.rsplit('# ')[1].strip())
+                    path.append(lajna.rsplit('# ')[1].strip())
                     lajna = f.readline()
             else:
                 date = f.readline().rsplit(': ')[1].strip()
@@ -490,15 +498,15 @@ def ukaz_LoadData(filenames): # TODO savitzky golay, background odecet
             temp = 'Not defined'
             folder = 'Not defined'
         if 'One polarity' in type_meas:
-            one_pol.append(measurement_result(data,repeat,time,field,temp,vzorek,folder,date,type_meas))
+            one_pol.append(measurement_result(data,repeat,time,field,temp,vzorek,folder,date,type_meas,path))
         elif 'Standart MOKE' in type_meas:
-            moke.append(measurement_result(data,repeat,time,field,temp,vzorek,folder,date,type_meas))
+            moke.append(measurement_result(data,repeat,time,field,temp,vzorek,folder,date,type_meas,path))
         elif 'Loop MOKE' in type_meas:
-            loop.append(measurement_result(data,repeat,time,field,temp,vzorek,folder,date,type_meas))
+            loop.append(measurement_result(data,repeat,time,field,temp,vzorek,folder,date,type_meas,path))
         elif 'Full MOKE' in type_meas:
-            fm.append(Full_moke(data,field,temp,vzorek,folder,dates,type_meas))
-        elif 'Průměr' in type_meas:
-            pm.append(Full_moke(data,field,temp,vzorek,folder,dates,type_meas))
+            fm.append(Full_moke(data,field,temp,vzorek,path,dates,type_meas))
+        elif 'Prumer' in type_meas:
+            pm.append(Full_moke(data,field,temp,vzorek,path,dates,type_meas))
     return one_pol, moke, loop,fm,pm
 
 def uka(path = 'Not defined',num = 1,sep = 1,pm = False, loop_energy = 'Not defined'):
@@ -515,7 +523,7 @@ def uka(path = 'Not defined',num = 1,sep = 1,pm = False, loop_energy = 'Not defi
         filenames = filenames + list(filedialog.askopenfilename(initialdir = initial_dir,title = "Select files",filetypes = (("txt files","*.dat .txt .KNT"),("all files","*.*")),multiple=True))
     root.destroy()
     onepol,moke,loop,fm,pm = ukaz_LoadData(filenames)
-    color_list = [plt.cm.coolwarm,plt.cm.BrBG,plt.cm.twilight_shifted,plt.cm.PiYG,plt.cm.PuOr,plt.cm.PRGn]
+    color_list = [plt.cm.coolwarm,plt.cm.BrBG,plt.cm.PiYG,plt.cm.PuOr,plt.cm.PRGn,plt.cm.twilight_shifted]
     color_list = color_list + max(0,len(color_list)-len(loop))*[plt.cm.coolwarm]
     if sep == 0:
         fig, ax = plt.subplots()
@@ -994,7 +1002,7 @@ def uka_vse(path = 'Not defined',num = 1,pm = False, loop_energy = 'Not defined'
     except:
         pass
 
-def elip(path = 'Not defined',show = True, save = True): # TODO prumerovani kdyz vyberes vic souboru
+def elip(path = 'Not defined',show = True, save = True):
     if path == 'Not defined':
         initial_dir = os.getcwd()
     else:
@@ -1010,7 +1018,19 @@ def elip(path = 'Not defined',show = True, save = True): # TODO prumerovani kdyz
     initial_dir = rotation.rsplit('/',1)[0]
     waveplates = filedialog.askopenfilename(initialdir = initial_dir,title = "Select waveplates",filetypes = (("txt files","*.dat .txt .KNT"),("all files","*.*")),multiple=False)
     root.destroy()
-    fuck,data,this,fm,pm = ukaz_LoadData([rotation,waveplates])
+    fuck,rot_moke,this,fm,rot_pm = ukaz_LoadData([rotation])
+    fuck,wav_moke,this,fm,wav_pm = ukaz_LoadData([waveplates])
+    data =[]
+    if len(rot_moke) == 1:
+        data.append(rot_moke[0])
+    elif len(rot_pm) == 1:
+        data.append(rot_pm[0])
+        data[0].data = data[0].data.rename(columns={'Average':'MOKE'})
+    if len(wav_moke) == 1:
+        data.append(wav_moke[0])
+    elif len(wav_pm) == 1:
+        data.append(wav_pm[0])
+        data[1].data = data[1].data.rename(columns={'Average':'MOKE'})
     result = pd.concat([data[0].data['MOKE'],data[1].data['MOKE']],keys=['Rotation', 'Plates'],axis=1, join='inner')
     result = result.sort_index()
     result = result.interpolate(method = 'index')
@@ -1025,15 +1045,27 @@ def elip(path = 'Not defined',show = True, save = True): # TODO prumerovani kdyz
     elipticita = - (np.array(result['Plates']) - np.array(result['Rotation'])*np.cos(delta))/np.sin(delta)
     result['Ellipticity'] = elipticita.tolist()
     result = result.drop(columns=['Plates'])
+    if show:
+        ax = plt.subplot()
+        ax.plot(result['Rotation'], label = 'Rotace')
+        ax.plot(result['Ellipticity'], label = 'Elipticita')
+        plt.legend()
     if save:
-        path_save = rotation.rsplit('/',1)[0]+'\\'+str(data[0].sample)+'_Full_MOKE.dat'
+        if data[0].sample == data[1].sample:
+            sample = data[0].sample
+        else:
+            sample = sm.askstring("Confilcting sample names!!!","Enter a sample name:\t\t\t\t\t\nNames:  "+data[0].sample+'\n'+'           '+data[1].sample)
+        path_save = rotation.rsplit('/',1)[0]+'\\'+str(sample)+'_Full_MOKE.dat'
         if os.path.exists(path_save):
             if askyesno(title='File exists', message='File already exists. Do you want to overwrite it?\nOne polarity measurement\n'+str(data[0])):
                 os.remove(path_save)
             else:
                 return
         file = open(path_save,'a')
-        file.write('# Type of measurement: Full MOKE +- ' + str(data[0].field) + 'T\n' )
+        if data[0].field == data[1].field:
+            file.write('# Type of measurement: Full MOKE +- ' + str(data[0].field) + 'T\n' )
+        else:
+            file.write('# Type of measurement: Full MOKE +- ?T\n' )
         
         daticka = ''
         if isinstance(data[0].date,list):
@@ -1049,44 +1081,232 @@ def elip(path = 'Not defined',show = True, save = True): # TODO prumerovani kdyz
         daticka = daticka.rsplit('\n',1)[0]
 
         raw = ''
-        if isinstance(rotation,list):
-            for i in rotation:
+        if isinstance(data[0].path,list):
+            for i in data[0].path:
                 raw = raw + i + '\n#                 '
         else:
-            raw = rotation +    '\n#                 ' 
-        if isinstance(waveplates,list):
-            for i in waveplates:
+            raw = data[0].path +    '\n#                 ' 
+        if isinstance(data[1].path,list):
+            for i in data[1].path:
                 raw = raw + i  +    '\n#                 '
         else:
-            raw = raw+waveplates+ '\n#                 '
+            raw = raw+data[1].path+ '\n#                 '
         raw = raw.rsplit('\n',1)[0]
 
-        file.write('# Vzorek:         '+data[0].sample+'\n# Field:          '+str(data[0].field)+'\n# Temperature:    '+str(data[0].temp)+'\n# Dates measured: '+daticka+'\n# OG data:        '+raw) # TODO dodelej hlavicku
+        if data[0].field == data[1].field:
+            field = str(data[0].field)
+        else:
+            field = 'Not defined'
+        if data[0].temp == data[1].temp:
+            temp = str(data[0].temp)
+        else:
+            temp = 'Not defined'
+        file.write('# Vzorek:         '+str(sample)+'\n# Field:          '+field+'\n# Temperature:    '+temp+'\n# Dates measured: '+daticka+'\n# OG data:        '+raw) 
         file.write('\n')                        
         file.close()
         result.to_csv(path_save,mode='a')
+
+def prumer(path = 'Not defined', num = 1, show = True, save = True): 
+    # Prumeruje mereni 
+    if path == 'Not defined':
+        initial_dir = os.getcwd()
+    else:
+        initial_dir = path
+    filenames = []
+    for i in range(num):
+        root = Tk()
+        root.withdraw()
+        root.call('wm', 'attributes', '.', '-topmost', True)
+        filenames = filenames + list(filedialog.askopenfilename(initialdir = initial_dir,title = "Select files",filetypes = (("txt files","*.dat .txt .KNT"),("all files","*.*")),multiple=True))
+    root.destroy()
+    onepol,moke,loop,fm,pm = ukaz_LoadData(filenames)
+    if len(moke) > 1:
+        data_to_ave = moke
+        print('Averaging MOKE')
+    elif len(onepol) > 1:
+        data_to_ave = onepol
+        print('Avereging One polarity of field')
+    else:
+        print('Error no MOKE or one polarity of field data to average')
+        return
+    fields = set([i.field for i in data_to_ave])
+    temps = set([i.temp for i in data_to_ave])
+    samples = set([i.sample for i in data_to_ave])
+    times = set([i.time for i in data_to_ave])
+    repeats = set([i.repeat for i in data_to_ave])
+    if len(times) == len(data_to_ave):
+        indexer = ['Time '+ str(i) for i in sorted(times)]
+        data_to_ave.sort(key = lambda x: x.time)
+    elif len(repeats) == len(data_to_ave):
+        indexer = ['Repeat '+ str(i) for i in sorted(repeats)]
+        data_to_ave.sort(key = lambda x: x.repeat)
+    else:
+        indexer = list(range(0,len(data_to_ave)))
+
+    if len(fields) == 1:
+        field = data_to_ave[0].field
+    else:
+        field = 'Not defined'
+    if len(temps) == 1:
+        temp = data_to_ave[0].temp
+    else:
+        temp = 'Not defined'
+    if len(samples) == 1:
+        sample = data_to_ave[0].sample
+    else:
+        sample='Not defined'
+    if len(data_to_ave) != len(filenames):
+        filenamess = []
+        for cesta in data_to_ave:
+            filenamess.append(cesta.path)
+    else:
+        filenamess = filenames
+    raw = ''
+    if isinstance(filenamess,list):
+        for i in filenamess:
+            raw = raw + i + '\n#                 '
+    else:
+        raw = ave.path +    '\n#                 ' 
+    raw = raw.rsplit('\n',1)[0]
+    if len(data_to_ave) != len(filenames):
+        win = Tk()
+        win.geometry("900x650")
+        win.withdraw()
+        not_filenames = ''
+        for dataa in filenames:
+            if dataa not in filenamess:
+                not_filenames= not_filenames + dataa +'\n#                 ' 
+        not_filenames = not_filenames.rsplit('\n',1)[0]
+        messagebox.showerror('Filenames Error', 'Error: Not all data can be averaged!\n\nAveraged data: '+raw+'\n\n\nData not averaged: '+not_filenames)
+    ave = Full_moke(data_to_ave[0].data,field,temp,sample,filenamess,[data_to_ave[0].date],'Prumer '+ data_to_ave[0].type.rsplit('+')[0].strip())
+    ave.data = ave.data.rename(columns = {'MOKE':indexer[0]})
+    ave.data = ave.data[[indexer[0]]]
+    for file in data_to_ave[1:]:
+        ave.data = pd.concat([ave.data,file.data['MOKE']],axis=1, join='inner')
+        ave.data = ave.data.rename(columns = {'MOKE':indexer[data_to_ave.index(file)]})
+        ave.date.append(file.date)
+    ave.data = ave.data.sort_index()
+    ave.data = ave.data.interpolate(method = 'index')
+    ave.data = ave.data[~ave.data.index.duplicated(keep='first')] # drop duplicate indexes
+    ave.data = ave.data[~ave.data.isin([np.nan]).any(axis=1)] 
+    ave.data['Average'] = ave.data.mean(axis=1)
     if show:
-        ax = plt.subplot()
-        ax.plot(result['Rotation'], label = 'Rotace')
-        ax.plot(result['Ellipticity'], label = 'Elipticita')
+        legenda = sample
+        names = ave.data.columns
+        for name in names:
+            if name == 'Average':
+                plt.plot(ave.data[name],'k--',label = legenda+' '+str(name))
+            else:
+                plt.plot(ave.data[name], label = legenda+' '+str(name))
+        plt.title('Avereged MOKE measurements of '+str(sample))
+        plt.legend()
+        plt.show()
+    if save:
+        if sample == 'Not defined':
+            sample = sm.askstring("Confilcting sample names!!!","Enter a sample name:\t\t\t")
+        path_save = filenamess[0].rsplit('/',1)[0]+'\\'+str(sample)+'_Prumer_MOKE.dat'
+        if os.path.exists(path_save):
+            if askyesno(title='File exists', message='File already exists. Do you want to overwrite it?'):
+                os.remove(path_save)
+            else:
+                return
+        file = open(path_save,'a')
+        if ave.field != 'Not defined':
+            file.write('# Type of measurement: Prumer MOKE +- ' + str(ave.field) + 'T\n' )
+        else:
+            file.write('# Type of measurement: Prumer MOKE')
+        daticka = ''
+        if isinstance(ave.date,list):
+            for i in ave.date:
+                daticka = daticka + i + '\n#                 '
+        else:
+            daticka = ave.date +    '\n#                 ' 
+        daticka = daticka.rsplit('\n',1)[0]
+        file.write('# Vzorek:         '+sample+'\n# Field:          '+str(field)+'\n# Temperature:    '+str(temp)+'\n# Dates measured: '+daticka+'\n# Path OG data:   '+raw) 
+        file.write('\n')                        
+        file.close()
+        ave.data.to_csv(path_save,mode='a')
+
+def bg(path = 'Not defined', show = True, save = True):
+    # odecte background smycky
+    if path == 'Not defined':
+        initial_dir = os.getcwd()
+    else:
+        initial_dir = path
+    root = Tk()
+    root.withdraw()
+    root.call('wm', 'attributes', '.', '-topmost', True)
+    data = filedialog.askopenfilename(initialdir = initial_dir,title = "Select Loop data",filetypes = (("txt files","*.dat"),("all files","*.*")),multiple=True)
+    root.destroy()
+    one_pol,moke,loop,fm,pm = ukaz_LoadData(data)
+    for loo in loop:
+        maxx = [i for i in loo.data.columns if abs(float(i.rsplit('T',1)[0])) == float(loo.field)]
+        control = sum(list(np.sign([float(i.rsplit('T',1)[0]) for i in maxx])))
+        if control != 0:
+            win = Tk()
+            win.geometry("900x650")
+            win.withdraw()
+            messagebox.showerror('Bg control error. Control = '+str(control), 'Error: Bg control error!\n\nControl = '+str(control)+'\n\nPay close attention to results!!')
+        bg = loo.data[maxx].sum(axis=1)/len(maxx)
+        loo.data = loo.data.subtract(bg, axis=0)
+        loo.bg_sub = True
+        if show:
+            legenda = loo.sample+' Subtracted BG'
+            if loo.temp != 'Not defined':
+                legenda = legenda + ' Temperature ' + str(loo.temp) + 'K'
+            if loo.repeat != 'Not defined':
+                legenda = legenda + ' Repeat ' + str(loo.repeat)
+            if loo.time != 'Not defined':
+                legenda = legenda + ' Time ' + str(loo.time)
+            fig, ax = plt.subplots()
+    
+            colors = plt.cm.coolwarm(np.linspace(0, 1, len(loo.data.columns)))
+            for i, col in enumerate(loo.data.columns):
+                ax.plot(loo.data.index, loo.data[col], color=colors[i])
+            cbar = plt.colorbar(plt.cm.ScalarMappable(cmap=plt.cm.coolwarm), ax=ax, ticks=[0, 0.5, 1])
+            cbar.ax.invert_yaxis()
+            cbar.ax.set_yticklabels([loo.data.columns[0].rsplit('T')[0]+' T', loo.data.columns[len(loo.data.columns)//2].rsplit('T')[0]+' T', loo.data.columns[-1].rsplit('T')[0]+' T'])
+            ax.lines[-1].set_label(legenda)
+            ax.lines[-1].set_label(legenda)
+            ax.set_title('Loop measurement of ' + loo.sample + ' with BG subtraction')
+        if save:
+            path = loo.path.rsplit('.dat')[0]+'_No-BG.dat'
+            if os.path.exists(path):
+                if askyesno(title='File exists', message='File already exists. Do you want to overwrite it?\Loop MOKE measurement\n'+loo.__str__()):
+                    os.remove(path)
+                else:
+                    return
+            file = open(path,'a')
+            file.write('# Type of measurement: Loop MOKE measurement - No BG\n' )
+            file.write('# Date measured:       ' + loo.date +'\n')
+            file.write(loo.__str__())
+            file.write('\n')
+            file.close()
+            loo.data.to_csv(path,mode='a')
+    if show:
         plt.legend()
 
+def sava(path = 'Not defined',win = 51,pol=3, show = True, save = True): #TODO
+    # Funkce na Savitzky-Golay filter
+    pass
+
 ##########################################################################################################################
 ##########################################################################################################################
-
-cesta = r'C:\Users\tmale\OneDrive\Documents\Data\LSMO\Francie 2022\MOKE\PLD4150\loop\raw_data' 
-
 start = time.time()
 
-uka_vse(cesta)
+cesta = r'C:\Users\tmale\OneDrive\Documents\Data\LSMO\Francie 2022\MOKE\PLD4150\loop' 
+
+
+bg(cesta)
+
+
+
 
 end = time.time()
-print('Execution time: ',end-start,' seconds')
-
+print('\nExecution time: ',round(end-start,2),' seconds')
 plt.show()
 
-# Funkce prumeruj - zprumeruje vybrana mereni
-#                  - ukaz : default false 
+
 
 # Funkce ukafit: ukaze fit na jedne energii 
 #              - energie : default 4 eV
@@ -1094,14 +1314,14 @@ plt.show()
 #   - Bude fungovat tak, ze si z nafitovaneho souboru precte path a parametry
 #     a nasledne je nalezne ve slozce (snad) a nafituje na te konkretni energii
 #
-# Funkce elip: spocte elipticitu a vytvori jeden soubor rotace a elipticity
-#              - soubor bude obsahovat data kdy bylo co zmerene, jmeno vzorku
 #
 # Funkce savitzky: proste filtr
 #                 - parameter save : default no
 #
-# Funkce odecti BG smycka
-#
 # Funkce vyplot findmin
 #
-# Help
+# Funkce na view random Tim spektra - to by melo byt v uka!
+#
+# Funkce nacti data for advanced purposes - jen tkinter okno co ti dovoly vybrat data a ty to nacte
+#
+# Funkce tkinter select jenom proste
